@@ -1,10 +1,10 @@
-export type Workplace = {
+export type Role = {
   id: string;
   name: string;
   createdAt: string;
   updatedAt: string;
 
-  // Optional workplace-specific defaults (override Settings defaults)
+  // Optional defaults (override workplace/settings)
   defaultHourlyWage?: number;
   defaultBreakMinutes?: number;
   defaultUnpaidBreak?: boolean;

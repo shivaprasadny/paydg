@@ -1,12 +1,10 @@
 // src/screens/add-shift.tsx
 // ---------------------------------------------------------
-// PayDG — Add Shift (Light theme like Settings)
-// ✅ Tap to pick Date + Time (no typing)
-// ✅ 12-hour time (AM/PM)
-// ✅ Reload defaults from Settings/Profile on focus
-// ✅ Overnight shifts supported
-// ✅ Workplace selection + Notes
-// ✅ Preview card
+// PayDG — Add Shift (with Role support)
+// ✅ Select Workplace + Role
+// ✅ Defaults priority: Role → Workplace → Settings(Profile)
+// ✅ Pickers (date/time) remain the same
+// ✅ Saves roleName/workplaceName into each shift for History/Entries display
 // ---------------------------------------------------------
 
 import React, { useCallback, useMemo, useState } from "react";
@@ -26,18 +24,18 @@ import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { getProfile } from "../storage/repositories/profileRepo";
-import { listWorkplaces } from "../storage/repositories/workplaceRepo";
+import { listWorkplaces, getWorkplaceById } from "../storage/repositories/workplaceRepo";
+import { listRoles, getRoleById } from "../storage/repositories/roleRepo";
 import { toISODate } from "../utils/dateUtils";
-
-/* =========================================================
-   Types
-========================================================= */
 
 type Shift = {
   id: string;
 
   workplaceId: string;
   workplaceName?: string;
+
+  roleId?: string;       // ✅ new
+  roleName?: string;     // ✅ new
 
   isoDate: string;
   startISO: string;
@@ -62,9 +60,7 @@ type Shift = {
 
 const STORAGE_KEY = "paydg_shifts_v1";
 
-/* =========================================================
-   Helpers
-========================================================= */
+/* ---------------- helpers ---------------- */
 
 function parseMoney(input: string): number {
   const cleaned = input.replace(/[^0-9.]/g, "");
@@ -109,16 +105,11 @@ function minutesOfDay(d: Date) {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-/** Build a Date from baseDate but with time taken from timeSource (hours/minutes). */
 function applyTimeToDate(baseDate: Date, timeSource: Date) {
   const out = new Date(baseDate);
   out.setHours(timeSource.getHours(), timeSource.getMinutes(), 0, 0);
   return out;
 }
-
-/* =========================================================
-   Small UI Components
-========================================================= */
 
 function TapPickerField({
   label,
@@ -140,20 +131,19 @@ function TapPickerField({
   );
 }
 
-/* =========================================================
-   Screen
-========================================================= */
+/* ---------------- screen ---------------- */
 
 export default function AddShiftScreen() {
   const router = useRouter();
   const workplaces = useMemo(() => listWorkplaces(), []);
+  const roles = useMemo(() => listRoles(), []);
 
-  // -------------------- Workplace --------------------
+  // Selection state
   const [workplaceId, setWorkplaceId] = useState(workplaces[0]?.id ?? "");
+  const [roleId, setRoleId] = useState<string>(""); // "" means No role
 
-  // -------------------- Date + Time --------------------
+  // Date/time
   const now = new Date();
-
   const [shiftDate, setShiftDate] = useState<Date>(now);
 
   const [startTime, setStartTime] = useState<Date>(() => {
@@ -168,34 +158,21 @@ export default function AddShiftScreen() {
     return d;
   });
 
-  // -------------------- Defaults (from Settings/Profile) --------------------
+  // Defaults/inputs
   const [hourlyWageText, setHourlyWageText] = useState("0");
   const [breakMinutesText, setBreakMinutesText] = useState("30");
   const [unpaidBreak, setUnpaidBreak] = useState(true);
 
-  // -------------------- Tips + Note --------------------
   const [cashTipsText, setCashTipsText] = useState("0");
   const [creditTipsText, setCreditTipsText] = useState("0");
   const [note, setNote] = useState("");
 
-  // ✅ reload defaults every time you open Add Shift
-  useFocusEffect(
-    useCallback(() => {
-      const p = getProfile();
-      if (!p) return;
-
-      setHourlyWageText(String(p.defaultHourlyWage ?? 0));
-      setBreakMinutesText(String(p.defaultBreakMinutes ?? 30));
-      setUnpaidBreak(p.defaultUnpaidBreak ?? true);
-    }, [])
-  );
-
-  // -------------------- Picker visibility --------------------
+  // Picker visibility
   const [dateOpen, setDateOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
 
-  // -------------------- Derived numbers --------------------
+  // Numbers
   const hourlyWage = useMemo(() => parseMoney(hourlyWageText), [hourlyWageText]);
   const cashTips = useMemo(() => parseMoney(cashTipsText), [cashTipsText]);
   const creditTips = useMemo(() => parseMoney(creditTipsText), [creditTipsText]);
@@ -215,6 +192,53 @@ export default function AddShiftScreen() {
     return { start, end };
   }, [shiftDate, startTime, endTime]);
 
+  // ✅ Apply defaults priority: Role → Workplace → Profile
+  const applyDefaults = useCallback(
+    (nextRoleId: string, nextWorkplaceId: string) => {
+      const p = getProfile();
+
+      const role = nextRoleId ? getRoleById(nextRoleId) : null;
+      const workplace = nextWorkplaceId ? getWorkplaceById(nextWorkplaceId) : null;
+
+      // Profile defaults
+      const pWage = p?.defaultHourlyWage ?? 0;
+      const pBreak = p?.defaultBreakMinutes ?? 30;
+      const pUnpaid = p?.defaultUnpaidBreak ?? true;
+
+      // Workplace defaults (if present)
+      const wWage = workplace?.defaultHourlyWage;
+      const wBreak = workplace?.defaultBreakMinutes;
+      const wUnpaid = workplace?.defaultUnpaidBreak;
+
+      // Role defaults (if present)
+      const rWage = role?.defaultHourlyWage;
+      const rBreak = role?.defaultBreakMinutes;
+      const rUnpaid = role?.defaultUnpaidBreak;
+
+      // Priority: Role → Workplace → Profile
+      setHourlyWageText(String(rWage ?? wWage ?? pWage));
+      setBreakMinutesText(String(rBreak ?? wBreak ?? pBreak));
+      setUnpaidBreak(!!(rUnpaid ?? wUnpaid ?? pUnpaid));
+    },
+    []
+  );
+
+  // On focus, start with profile defaults then override using role/workplace
+  useFocusEffect(
+    useCallback(() => {
+      const p = getProfile();
+      if (!p) return;
+
+      setHourlyWageText(String(p.defaultHourlyWage ?? 0));
+      setBreakMinutesText(String(p.defaultBreakMinutes ?? 30));
+      setUnpaidBreak(p.defaultUnpaidBreak ?? true);
+
+      if (workplaceId) {
+        applyDefaults(roleId, workplaceId);
+      }
+    }, [workplaceId, roleId, applyDefaults])
+  );
+
   const preview = useMemo(() => {
     let minutes = Math.max(0, Math.round((normalized.end.getTime() - normalized.start.getTime()) / 60000));
     if (unpaidBreak) minutes = Math.max(0, minutes - breakMinutes);
@@ -227,7 +251,6 @@ export default function AddShiftScreen() {
     return { minutes, hours, hourlyPay, tips, total };
   }, [normalized, unpaidBreak, breakMinutes, hourlyWage, cashTips, creditTips]);
 
-  // -------------------- Save --------------------
   async function saveShift() {
     if (!workplaceId) {
       Alert.alert("Workplace", "Please select a workplace.");
@@ -242,13 +265,17 @@ export default function AddShiftScreen() {
       return;
     }
 
-    const workplace = workplaces.find((w: any) => w.id === workplaceId);
+    const workplace = getWorkplaceById(workplaceId);
+    const role = roleId ? getRoleById(roleId) : null;
 
     const shift: Shift = {
       id: `${Date.now()}`,
 
       workplaceId,
       workplaceName: workplace?.name,
+
+      roleId: roleId || undefined,
+      roleName: role?.name,
 
       isoDate,
       startISO: normalized.start.toISOString(),
@@ -263,7 +290,6 @@ export default function AddShiftScreen() {
 
       workedMinutes: preview.minutes,
       workedHours: preview.hours,
-
       hourlyPay: preview.hourlyPay,
       totalTips: preview.tips,
       totalEarned: preview.total,
@@ -278,7 +304,7 @@ export default function AddShiftScreen() {
       arr.unshift(shift);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
 
-      Alert.alert("Saved", "Shift saved successfully ✅");
+      Alert.alert("Saved", "Shift saved ✅");
       router.back();
     } catch {
       Alert.alert("Error", "Could not save shift. Please try again.");
@@ -291,7 +317,6 @@ export default function AddShiftScreen() {
         {/* Header */}
         <View style={styles.topRow}>
           <Text style={styles.title}>Add Shift</Text>
-
           <Pressable style={styles.historyBtn} onPress={() => router.push("/history")}>
             <Text style={styles.historyBtnText}>History</Text>
           </Pressable>
@@ -300,14 +325,16 @@ export default function AddShiftScreen() {
         {/* Workplace */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Workplace</Text>
-
           <View style={styles.chipsWrap}>
             {workplaces.map((w: any) => {
               const active = w.id === workplaceId;
               return (
                 <Pressable
                   key={w.id}
-                  onPress={() => setWorkplaceId(w.id)}
+                  onPress={() => {
+                    setWorkplaceId(w.id);
+                    applyDefaults(roleId, w.id);
+                  }}
                   style={[styles.chip, active && styles.chipActive]}
                 >
                   <Text style={[styles.chipText, active && styles.chipTextActive]}>{w.name}</Text>
@@ -315,14 +342,47 @@ export default function AddShiftScreen() {
               );
             })}
           </View>
+        </View>
 
-          <Text style={styles.helper}>Selected: {workplaces.find((w: any) => w.id === workplaceId)?.name}</Text>
+        {/* Role */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Role</Text>
+
+          <View style={styles.chipsWrap}>
+            {/* "No role" option */}
+            <Pressable
+              onPress={() => {
+                setRoleId("");
+                applyDefaults("", workplaceId);
+              }}
+              style={[styles.chip, roleId === "" && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, roleId === "" && styles.chipTextActive]}>No role</Text>
+            </Pressable>
+
+            {roles.map((r: any) => {
+              const active = r.id === roleId;
+              return (
+                <Pressable
+                  key={r.id}
+                  onPress={() => {
+                    setRoleId(r.id);
+                    applyDefaults(r.id, workplaceId);
+                  }}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{r.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {roles.length === 0 && <Text style={styles.helper}>Add roles in Home → Roles.</Text>}
         </View>
 
         {/* Date */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Shift Date</Text>
-
           <TapPickerField label="Date" valueText={formatDate(shiftDate)} onPress={() => setDateOpen(true)} />
           <Text style={styles.helper}>Saved as: {isoDate}</Text>
 
@@ -341,7 +401,6 @@ export default function AddShiftScreen() {
         {/* Time */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Shift Time</Text>
-
           <View style={{ flexDirection: "row", gap: 12 }}>
             <View style={{ flex: 1 }}>
               <TapPickerField label="Start" valueText={formatTime12(startTime)} onPress={() => setStartOpen(true)} />
@@ -374,7 +433,7 @@ export default function AddShiftScreen() {
             </View>
           </View>
 
-          <Text style={styles.helper}>Overnight supported (end earlier than start).</Text>
+          <Text style={styles.helper}>Overnight supported.</Text>
         </View>
 
         {/* Break */}
@@ -387,49 +446,25 @@ export default function AddShiftScreen() {
           </View>
 
           <Text style={[styles.label, { marginTop: 10 }]}>Break minutes</Text>
-          <TextInput
-            value={breakMinutesText}
-            onChangeText={setBreakMinutesText}
-            keyboardType="number-pad"
-            placeholder="30"
-            style={styles.input}
-          />
+          <TextInput value={breakMinutesText} onChangeText={setBreakMinutesText} keyboardType="number-pad" style={styles.input} />
         </View>
 
-        {/* Pay + Tips */}
+        {/* Pay & Tips */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Pay & Tips</Text>
 
           <Text style={styles.label}>Hourly wage</Text>
-          <TextInput
-            value={hourlyWageText}
-            onChangeText={setHourlyWageText}
-            keyboardType="decimal-pad"
-            placeholder="e.g. 15"
-            style={styles.input}
-          />
+          <TextInput value={hourlyWageText} onChangeText={setHourlyWageText} keyboardType="decimal-pad" style={styles.input} />
 
           <View style={{ flexDirection: "row", gap: 12 }}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Cash tips</Text>
-              <TextInput
-                value={cashTipsText}
-                onChangeText={setCashTipsText}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                style={styles.input}
-              />
+              <TextInput value={cashTipsText} onChangeText={setCashTipsText} keyboardType="decimal-pad" style={styles.input} />
             </View>
 
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Card tips</Text>
-              <TextInput
-                value={creditTipsText}
-                onChangeText={setCreditTipsText}
-                keyboardType="decimal-pad"
-                placeholder="0"
-                style={styles.input}
-              />
+              <TextInput value={creditTipsText} onChangeText={setCreditTipsText} keyboardType="decimal-pad" style={styles.input} />
             </View>
           </View>
         </View>
@@ -471,7 +506,6 @@ export default function AddShiftScreen() {
           </View>
         </View>
 
-        {/* Save */}
         <Pressable style={styles.saveBtn} onPress={saveShift}>
           <Text style={styles.saveBtnText}>Save Shift</Text>
         </Pressable>
@@ -480,10 +514,6 @@ export default function AddShiftScreen() {
   );
 }
 
-/* =========================================================
-   Styles (Light theme, matches settings.tsx)
-========================================================= */
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f7f7f7" },
   container: { padding: 16, paddingBottom: 30, gap: 12 },
@@ -491,12 +521,7 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { fontSize: 28, fontWeight: "800" },
 
-  historyBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: "#111",
-  },
+  historyBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: "#111" },
   historyBtnText: { color: "#fff", fontWeight: "800" },
 
   card: {
@@ -551,24 +576,12 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: "800" },
   chipTextActive: { color: "#fff" },
 
-  previewCard: {
-    backgroundColor: "#111",
-    borderRadius: 16,
-    padding: 14,
-    gap: 8,
-  },
+  previewCard: { backgroundColor: "#111", borderRadius: 16, padding: 14, gap: 8 },
   previewTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
   previewRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   previewLabel: { color: "rgba(255,255,255,0.75)", fontSize: 13 },
   previewValue: { color: "#fff", fontSize: 15, fontWeight: "900" },
 
-  saveBtn: {
-    height: 52,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#111",
-    marginTop: 6,
-  },
+  saveBtn: { height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#111", marginTop: 6 },
   saveBtnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
 });

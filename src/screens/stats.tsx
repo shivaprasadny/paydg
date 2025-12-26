@@ -1,13 +1,15 @@
 // src/screens/stats.tsx
 // ---------------------------------------------------------
-// PayDg — Stats Screen
-// ✅ Weekly selector (Mon–Sun)
-// ✅ Shows totals for selected week: hours, cash tips, cc tips, total earned
-// ✅ Shows all entries for that week (tap entry to edit shift)
+// PayDG — Stats (Phase 1)
+// ✅ Weekly (Mon–Sun) + Month + Year
+// ✅ Jump to any week/month/year using date picker (no endless buttons)
+// ✅ Workplace filter (All / one workplace)
+// ✅ Drill-down: View shifts (week details)
 // ---------------------------------------------------------
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
+  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -16,17 +18,18 @@ import {
   View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 
-import { toISODate } from "../utils/dateUtils";
+import { listWorkplaces } from "../storage/repositories/workplaceRepo";
 
 type Shift = {
   id: string;
 
-  workplaceId?: string;
+  workplaceId: string;
   workplaceName?: string;
 
-  isoDate: string;
+  isoDate: string; // YYYY-MM-DD
   startISO: string;
   endISO: string;
 
@@ -45,320 +48,388 @@ type Shift = {
   totalEarned: number;
 
   note?: string;
-
   createdAt: string;
 };
 
 const STORAGE_KEY = "paydg_shifts_v1";
 
 /* =========================================================
-   Helpers: money/time/week
+   Date helpers (week starts Monday, ends Sunday)
 ========================================================= */
+
+function startOfWeekMonday(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const day = x.getDay(); // 0 Sun..6 Sat
+  const diff = (day === 0 ? -6 : 1) - day; // to Monday
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+
+function endOfWeekSunday(d: Date) {
+  const start = startOfWeekMonday(d);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
+function startOfMonth(d: Date) {
+  const x = new Date(d.getFullYear(), d.getMonth(), 1);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfMonth(d: Date) {
+  const x = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function startOfYear(d: Date) {
+  const x = new Date(d.getFullYear(), 0, 1);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfYear(d: Date) {
+  const x = new Date(d.getFullYear(), 11, 31);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function fmtRange(a: Date, b: Date) {
+  // Example: Dec 1 – Dec 7, 2025
+  const sameYear = a.getFullYear() === b.getFullYear();
+  const sameMonth = a.getMonth() === b.getMonth();
+
+  const aText = a.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+
+  const bText = b.toLocaleDateString(undefined, {
+    month: sameMonth ? undefined : "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  return `${aText} – ${bText}`;
+}
+
+function fmtMonth(d: Date) {
+  return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+function fmtYear(d: Date) {
+  return String(d.getFullYear());
+}
 
 function fmtMoney(n: number) {
   const val = Number.isFinite(n) ? n : 0;
   return `$${val.toFixed(2)}`;
 }
 
-function fmtTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+/* =========================================================
+   Totals helper
+========================================================= */
 
-function fmtDateShort(isoDate: string) {
-  // isoDate is "YYYY-MM-DD"
-  const d = new Date(isoDate + "T00:00:00");
-  return d.toLocaleDateString(undefined, { month: "short", day: "2-digit" });
-}
+function computeTotals(shifts: Shift[]) {
+  const workedMinutes = shifts.reduce((s, x) => s + (x.workedMinutes || 0), 0);
+  const hours = Number((workedMinutes / 60).toFixed(2));
 
-// Week starts Monday 00:00:00
-function startOfWeekMonday(d: Date) {
-  const x = new Date(d);
-  const day = x.getDay(); // 0 Sun..6 Sat
-  const diff = (day === 0 ? -6 : 1) - day; // move to Monday
-  x.setDate(x.getDate() + diff);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
+  const cash = shifts.reduce((s, x) => s + (x.cashTips || 0), 0);
+  const card = shifts.reduce((s, x) => s + (x.creditTips || 0), 0);
+  const tips = Number((cash + card).toFixed(2));
 
-// Sunday 23:59:59.999 (end of week)
-function endOfWeekSunday(d: Date) {
-  const start = startOfWeekMonday(d);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return end;
-}
+  const wage = shifts.reduce((s, x) => s + (x.hourlyPay || 0), 0);
+  const total = shifts.reduce((s, x) => s + (x.totalEarned || 0), 0);
 
-// Key for grouping: Monday date "YYYY-MM-DD"
-function weekKeyFromDate(d: Date) {
-  return toISODate(startOfWeekMonday(d));
-}
-
-function weekLabel(weekKey: string) {
-  const start = new Date(weekKey + "T00:00:00");
-  const end = endOfWeekSunday(start);
-  return `${fmtDateShort(toISODate(start))} – ${fmtDateShort(toISODate(end))}`;
+  return {
+    shiftsCount: shifts.length,
+    hours,
+    cash: Number(cash.toFixed(2)),
+    card: Number(card.toFixed(2)),
+    tips,
+    wage: Number(wage.toFixed(2)),
+    total: Number(total.toFixed(2)),
+  };
 }
 
 /* =========================================================
    Screen
 ========================================================= */
 
+type Mode = "week" | "month" | "year";
+
 export default function StatsScreen() {
   const router = useRouter();
+  const workplaces = useMemo(() => listWorkplaces(), []);
+  const [allShifts, setAllShifts] = useState<Shift[]>([]);
 
-  const [shifts, setShifts] = useState<Shift[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Mode tabs
+  const [mode, setMode] = useState<Mode>("week");
 
-  const [selectedWeekKey, setSelectedWeekKey] = useState<string>(
-    weekKeyFromDate(new Date())
-  );
+  // “Anchor date” = controls which week/month/year we’re looking at
+  const [anchorDate, setAnchorDate] = useState<Date>(new Date());
 
-  async function load() {
-    try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const arr: Shift[] = raw ? JSON.parse(raw) : [];
-      setShifts(arr);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Pickers
+  const [pickerOpen, setPickerOpen] = useState<null | "week" | "month" | "year">(null);
 
-  // Load once
-  useEffect(() => {
-    load();
-  }, []);
+  // Workplace filter
+  const [workplaceId, setWorkplaceId] = useState<string>("ALL");
+  const [workplaceModal, setWorkplaceModal] = useState(false);
 
-  // Reload when coming back from edit/add
+  // Load shifts whenever screen is focused
   useFocusEffect(
     useCallback(() => {
-      load();
+      (async () => {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const arr: Shift[] = raw ? JSON.parse(raw) : [];
+        setAllShifts(arr);
+      })();
     }, [])
   );
 
-  /* =========================================================
-     Build weeks list (from existing shifts + current week)
-  ========================================================= */
-
-  const weeks = useMemo(() => {
-    const keys = new Set<string>();
-
-    // Always include current week so screen isn't empty
-    keys.add(weekKeyFromDate(new Date()));
-
-    for (const s of shifts) {
-      const start = new Date(s.startISO);
-      keys.add(weekKeyFromDate(start));
+  // Date window based on mode
+  const window = useMemo(() => {
+    if (mode === "week") {
+      const start = startOfWeekMonday(anchorDate);
+      const end = endOfWeekSunday(anchorDate);
+      return { start, end, label: fmtRange(start, end) };
     }
+    if (mode === "month") {
+      const start = startOfMonth(anchorDate);
+      const end = endOfMonth(anchorDate);
+      return { start, end, label: fmtMonth(anchorDate) };
+    }
+    const start = startOfYear(anchorDate);
+    const end = endOfYear(anchorDate);
+    return { start, end, label: fmtYear(anchorDate) };
+  }, [mode, anchorDate]);
 
-    // Sort newest week first
-    const sorted = Array.from(keys).sort((a, b) => {
-      const ams = new Date(a + "T00:00:00").getTime();
-      const bms = new Date(b + "T00:00:00").getTime();
-      return bms - ams;
+  // Filter shifts by date window + workplace
+  const filtered = useMemo(() => {
+    const min = window.start.getTime();
+    const max = window.end.getTime();
+
+    return allShifts.filter((s) => {
+      const t = new Date(s.startISO).getTime();
+      if (t < min || t > max) return false;
+      if (workplaceId !== "ALL" && s.workplaceId !== workplaceId) return false;
+      return true;
     });
+  }, [allShifts, window.start, window.end, workplaceId]);
 
-    return sorted;
-  }, [shifts]);
+  const totals = useMemo(() => computeTotals(filtered), [filtered]);
 
-  // Ensure selected week exists (if you have no data yet)
-  useEffect(() => {
-    if (weeks.length === 0) return;
-    if (!weeks.includes(selectedWeekKey)) {
-      setSelectedWeekKey(weeks[0]);
-    }
-  }, [weeks, selectedWeekKey]);
+  const workplaceLabel = useMemo(() => {
+    if (workplaceId === "ALL") return "All workplaces";
+    const w = workplaces.find((x: any) => x.id === workplaceId);
+    return w?.name ?? "Workplace";
+  }, [workplaceId, workplaces]);
 
-  /* =========================================================
-     Filter shifts for selected week
-  ========================================================= */
-
-  const selectedWeek = useMemo(() => {
-    const start = new Date(selectedWeekKey + "T00:00:00");
-    const end = endOfWeekSunday(start);
-
-    const filtered = shifts
-      .filter((s) => {
-        const ms = new Date(s.startISO).getTime();
-        return ms >= start.getTime() && ms <= end.getTime();
-      })
-      .sort((a, b) => new Date(b.startISO).getTime() - new Date(a.startISO).getTime());
-
-    // Totals
-    let totalMinutes = 0;
-    let totalCash = 0;
-    let totalCC = 0;
-    let totalEarned = 0;
-
-    for (const s of filtered) {
-      totalMinutes += Number(s.workedMinutes || 0);
-      totalCash += Number(s.cashTips || 0);
-      totalCC += Number(s.creditTips || 0);
-      totalEarned += Number(s.totalEarned || 0);
-    }
-
-    const totalHours = totalMinutes / 60;
-
-    return {
-      start,
-      end,
-      shifts: filtered,
-      totals: {
-        minutes: totalMinutes,
-        hours: totalHours,
-        cash: totalCash,
-        cc: totalCC,
-        earned: totalEarned,
-      },
-    };
-  }, [shifts, selectedWeekKey]);
-
-  /* =========================================================
-     UI
-  ========================================================= */
+  function openPickerForCurrentMode() {
+    if (mode === "week") setPickerOpen("week");
+    if (mode === "month") setPickerOpen("month");
+    if (mode === "year") setPickerOpen("year");
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* -------------------- Header -------------------- */}
+        {/* Header */}
         <View style={styles.headerRow}>
           <Text style={styles.title}>Stats</Text>
 
-          <Pressable style={styles.smallBtn} onPress={() => router.push("/add-shift")}>
-            <Text style={styles.smallBtnText}>+ Add Shift</Text>
+          <Pressable style={styles.filterBtn} onPress={() => setWorkplaceModal(true)}>
+            <Text style={styles.filterText}>{workplaceLabel}</Text>
           </Pressable>
         </View>
 
-        {/* -------------------- Week selector -------------------- */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Weekly Stats</Text>
-          <Text style={styles.helper}>Week is Monday → Sunday</Text>
+        {/* Tabs */}
+        <View style={styles.tabs}>
+          <Pressable
+            onPress={() => setMode("week")}
+            style={[styles.tab, mode === "week" && styles.tabActive]}
+          >
+            <Text style={[styles.tabText, mode === "week" && styles.tabTextActive]}>Week</Text>
+          </Pressable>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              {weeks.map((wk) => {
-                const active = wk === selectedWeekKey;
+          <Pressable
+            onPress={() => setMode("month")}
+            style={[styles.tab, mode === "month" && styles.tabActive]}
+          >
+            <Text style={[styles.tabText, mode === "month" && styles.tabTextActive]}>Month</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setMode("year")}
+            style={[styles.tab, mode === "year" && styles.tabActive]}
+          >
+            <Text style={[styles.tabText, mode === "year" && styles.tabTextActive]}>Year</Text>
+          </Pressable>
+        </View>
+
+        {/* Range Picker Row */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Selected</Text>
+
+          <View style={styles.rowBetween}>
+            <Text style={styles.rangeText}>{window.label}</Text>
+
+            <Pressable style={styles.pickBtn} onPress={openPickerForCurrentMode}>
+              <Text style={styles.pickBtnText}>Pick</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.helper}>
+            Week starts Monday and ends Sunday.
+          </Text>
+
+          {mode === "week" && (
+            <Pressable
+              style={[styles.pickBtn, { marginTop: 10, alignSelf: "flex-start" }]}
+              onPress={() =>
+                router.push({
+                  pathname: "/week-details",
+                  params: {
+                    start: window.start.toISOString(),
+                    end: window.end.toISOString(),
+                    workplaceId,
+                    label: window.label,
+                  },
+                })
+              }
+            >
+              <Text style={styles.pickBtnText}>View shifts →</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Totals */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Totals</Text>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Shifts</Text>
+            <Text style={styles.totalValue}>{totals.shiftsCount}</Text>
+          </View>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Hours</Text>
+            <Text style={styles.totalValue}>{totals.hours.toFixed(2)}h</Text>
+          </View>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Hourly pay</Text>
+            <Text style={styles.totalValue}>{fmtMoney(totals.wage)}</Text>
+          </View>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Cash tips</Text>
+            <Text style={styles.totalValue}>{fmtMoney(totals.cash)}</Text>
+          </View>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Card tips</Text>
+            <Text style={styles.totalValue}>{fmtMoney(totals.card)}</Text>
+          </View>
+
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total tips</Text>
+            <Text style={styles.totalValue}>{fmtMoney(totals.tips)}</Text>
+          </View>
+
+          <View style={[styles.totalRow, { marginTop: 8 }]}>
+            <Text style={[styles.totalLabel, { fontWeight: "900" }]}>Total earned</Text>
+            <Text style={[styles.totalValue, { fontSize: 18 }]}>{fmtMoney(totals.total)}</Text>
+          </View>
+        </View>
+
+        {/* -------------------- Date picker modal -------------------- */}
+        <DateTimePickerModal
+          isVisible={pickerOpen !== null}
+          mode="date"
+          date={anchorDate}
+          onConfirm={(d) => {
+            setAnchorDate(d);
+            setPickerOpen(null);
+          }}
+          onCancel={() => setPickerOpen(null)}
+        />
+
+        {/* -------------------- Workplace modal -------------------- */}
+        <Modal transparent visible={workplaceModal} animationType="fade">
+          <Pressable style={styles.modalOverlay} onPress={() => setWorkplaceModal(false)}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Filter by workplace</Text>
+
+              <Pressable
+                onPress={() => {
+                  setWorkplaceId("ALL");
+                  setWorkplaceModal(false);
+                }}
+                style={[styles.modalItem, workplaceId === "ALL" && styles.modalItemActive]}
+              >
+                <Text style={styles.modalItemText}>All workplaces</Text>
+              </Pressable>
+
+              {workplaces.map((w: any) => {
+                const active = w.id === workplaceId;
                 return (
                   <Pressable
-                    key={wk}
-                    onPress={() => setSelectedWeekKey(wk)}
-                    style={[styles.weekChip, active && styles.weekChipActive]}
+                    key={w.id}
+                    onPress={() => {
+                      setWorkplaceId(w.id);
+                      setWorkplaceModal(false);
+                    }}
+                    style={[styles.modalItem, active && styles.modalItemActive]}
                   >
-                    <Text style={[styles.weekChipText, active && styles.weekChipTextActive]}>
-                      {weekLabel(wk)}
-                    </Text>
+                    <Text style={styles.modalItemText}>{w.name}</Text>
                   </Pressable>
                 );
               })}
             </View>
-          </ScrollView>
-        </View>
-
-        {/* -------------------- Totals -------------------- */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            Totals • {weekLabel(selectedWeekKey)}
-          </Text>
-
-          {loading ? (
-            <Text style={styles.helper}>Loading…</Text>
-          ) : (
-            <>
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Hours</Text>
-                <Text style={styles.totalValue}>{selectedWeek.totals.hours.toFixed(2)}h</Text>
-              </View>
-
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Cash tips</Text>
-                <Text style={styles.totalValue}>{fmtMoney(selectedWeek.totals.cash)}</Text>
-              </View>
-
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Card tips</Text>
-                <Text style={styles.totalValue}>{fmtMoney(selectedWeek.totals.cc)}</Text>
-              </View>
-
-              <View style={[styles.totalRow, { marginTop: 8 }]}>
-                <Text style={[styles.totalLabel, { fontWeight: "900" }]}>Total earned</Text>
-                <Text style={[styles.totalValue, { fontSize: 18 }]}>{fmtMoney(selectedWeek.totals.earned)}</Text>
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* -------------------- Entries for selected week -------------------- */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Entries (this week)</Text>
-
-          {loading ? (
-            <Text style={styles.helper}>Loading…</Text>
-          ) : selectedWeek.shifts.length === 0 ? (
-            <Text style={styles.helper}>No entries in this week.</Text>
-          ) : (
-            selectedWeek.shifts.map((s) => (
-              <Pressable
-                key={s.id}
-                onPress={() => router.push({ pathname: "/edit-shift", params: { id: s.id } })}
-                style={styles.shiftRow}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.shiftTop}>
-                    {s.isoDate}
-                    {s.workplaceName ? ` • ${s.workplaceName}` : ""}
-                  </Text>
-
-                  <Text style={styles.shiftMeta}>
-                    {fmtTime(s.startISO)} – {fmtTime(s.endISO)} • {s.workedHours}h
-                  </Text>
-
-                  <Text style={styles.shiftMeta}>
-                    Cash {fmtMoney(s.cashTips)} • Card {fmtMoney(s.creditTips)}
-                  </Text>
-
-                  {s.note ? (
-                    <Text style={styles.noteText} numberOfLines={2}>
-                      Note: {s.note}
-                    </Text>
-                  ) : null}
-                </View>
-
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={styles.earned}>{fmtMoney(s.totalEarned)}</Text>
-                  <Text style={styles.editHint}>Tap to edit</Text>
-                </View>
-              </Pressable>
-            ))
-          )}
-        </View>
-
-        <Text style={styles.footer}>
-          Tip: Tap a week above to see that week’s totals + entries.
-        </Text>
+          </Pressable>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 /* =========================================================
-   Styles
+   Styles (matches Settings: light theme)
 ========================================================= */
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f7f7f7" },
-  container: { padding: 16, paddingBottom: 30, gap: 14 },
+  container: { padding: 16, paddingBottom: 30, gap: 12 },
 
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { fontSize: 28, fontWeight: "800" },
 
-  smallBtn: {
+  filterBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: "#111",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
   },
-  smallBtnText: { color: "#fff", fontWeight: "900" },
+  filterText: { color: "#fff", fontWeight: "800" },
+
+  tabs: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#e8e8e8",
+    overflow: "hidden",
+  },
+  tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
+  tabActive: { backgroundColor: "#111" },
+  tabText: { fontWeight: "800", opacity: 0.7 },
+  tabTextActive: { color: "#fff", opacity: 1 },
 
   card: {
     backgroundColor: "#fff",
@@ -369,42 +440,50 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   cardTitle: { fontSize: 16, fontWeight: "800" },
+
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
+  rangeText: { fontSize: 15, fontWeight: "800" },
+
   helper: { fontSize: 12, opacity: 0.6 },
 
-  weekChip: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 999,
+  pickBtn: {
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "#fff",
+    borderRadius: 12,
+    backgroundColor: "#111",
   },
-  weekChipActive: {
-    borderColor: "#111",
-    backgroundColor: "#E5E7EB",
-  },
-  weekChipText: { fontSize: 12, fontWeight: "800", opacity: 0.8 },
-  weekChipTextActive: { opacity: 1 },
+  pickBtnText: { color: "#fff", fontWeight: "900" },
 
   totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  totalLabel: { fontSize: 14, opacity: 0.7 },
+  totalLabel: { fontSize: 13, opacity: 0.7 },
   totalValue: { fontSize: 16, fontWeight: "900" },
 
-  shiftRow: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    padding: 18,
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e8e8e8",
+    gap: 10,
+  },
+  modalTitle: { fontSize: 16, fontWeight: "900", marginBottom: 4 },
+
+  modalItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#eee",
-    borderRadius: 14,
-    padding: 12,
-    flexDirection: "row",
-    gap: 12,
-    backgroundColor: "#fff",
   },
-  shiftTop: { fontSize: 15, fontWeight: "900" },
-  shiftMeta: { fontSize: 13, opacity: 0.7, marginTop: 2 },
-  noteText: { fontSize: 12, opacity: 0.75, marginTop: 6 },
-
-  earned: { fontSize: 16, fontWeight: "900" },
-  editHint: { fontSize: 11, opacity: 0.5, marginTop: 4 },
-
-  footer: { textAlign: "center", opacity: 0.6, marginTop: 6 },
+  modalItemActive: {
+    borderColor: "#111",
+    backgroundColor: "#f2f2f2",
+  },
+  modalItemText: { fontWeight: "800" },
 });

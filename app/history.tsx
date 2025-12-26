@@ -1,1 +1,2 @@
-export { default } from "../src/screens/shift-history";
+export { default } from "../src/screens/history";
+

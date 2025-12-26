@@ -1,43 +1,63 @@
-import { getAll, getFirst, run } from "../database";
-import type { Workplace } from "../../models/Workplace";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Workplace } from "../../models/Workplace";
 
-function map(row: any): Workplace {
-  return {
-    id: row.id,
-    name: row.name,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
+const KEY = "paydg_workplaces_v1";
+
+// simple in-memory cache (sync reads)
+let cache: Workplace[] = [];
+
+/** Hydrate once at app start (migrations/_layout) */
+export async function hydrateWorkplaces() {
+  const raw = await AsyncStorage.getItem(KEY);
+  cache = raw ? JSON.parse(raw) : [];
+  return cache;
 }
 
+/** Sync list */
 export function listWorkplaces(): Workplace[] {
-  return getAll<any>("SELECT * FROM workplaces ORDER BY name ASC").map(map);
+  return cache;
 }
 
-export function getWorkplace(id: string): Workplace | null {
-  const row = getFirst<any>("SELECT * FROM workplaces WHERE id = ?", [id]);
-  return row ? map(row) : null;
+/** Persist list */
+async function saveAll(next: Workplace[]) {
+  cache = next;
+  await AsyncStorage.setItem(KEY, JSON.stringify(next));
+  return next;
 }
 
-export function createWorkplace(input: { id: string; name: string }) {
+/** Add workplace */
+export async function addWorkplace(name: string) {
   const now = new Date().toISOString();
-  run(
-    `INSERT INTO workplaces (id, name, created_at, updated_at)
-     VALUES (?, ?, ?, ?)`,
-    [input.id, input.name.trim(), now, now]
-  );
+  const w: Workplace = {
+    id: String(Date.now()),
+    name: name.trim(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  const next = [w, ...cache];
+  await saveAll(next);
+  return w;
 }
 
-export function updateWorkplace(input: { id: string; name: string }) {
+/** Find by id (sync) */
+export function getWorkplaceById(id: string) {
+  return cache.find((w) => w.id === id) ?? null;
+}
+
+/** Update by id */
+export async function updateWorkplace(id: string, patch: Partial<Workplace>) {
   const now = new Date().toISOString();
-  run(
-    `UPDATE workplaces
-     SET name = ?, updated_at = ?
-     WHERE id = ?`,
-    [input.name.trim(), now, input.id]
-  );
+  const next = cache.map((w) => {
+    if (w.id !== id) return w;
+    return { ...w, ...patch, updatedAt: now };
+  });
+  await saveAll(next);
+  return getWorkplaceById(id);
 }
 
-export function deleteWorkplace(id: string) {
-  run("DELETE FROM workplaces WHERE id = ?", [id]);
+/** Delete by id */
+export async function deleteWorkplace(id: string) {
+  const next = cache.filter((w) => w.id !== id);
+  await saveAll(next);
+  return true;
 }
