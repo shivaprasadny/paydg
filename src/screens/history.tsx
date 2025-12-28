@@ -4,6 +4,7 @@
 // ✅ Shows Workplace + Role (if any)
 // ✅ Tap shift -> Edit Shift
 // ✅ Long press shift -> Delete
+// ✅ i18n (English/Spanish) via t() + useLang()
 // ---------------------------------------------------------
 
 import React, { useCallback, useMemo, useState } from "react";
@@ -18,6 +19,10 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
+import { t } from "../i18n";
+import { useLang } from "../i18n/useLang";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import Screen from "../components/Screen";
 
 const STORAGE_KEY = "paydg_shifts_v1";
 
@@ -29,8 +34,6 @@ type Shift = {
   endISO: string;
 
   workplaceName?: string;
-
-  // ✅ role fields (may be missing for old shifts)
   roleName?: string;
 
   workedHours: number;
@@ -72,6 +75,9 @@ function startOfMonth(d: Date) {
 
 export default function HistoryScreen() {
   const router = useRouter();
+
+  // ✅ rerender when language changes
+  useLang();
 
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,10 +121,10 @@ export default function HistoryScreen() {
 
   const deleteShift = useCallback(
     (id: string) => {
-      Alert.alert("Delete shift?", "This cannot be undone.", [
-        { text: "Cancel", style: "cancel" },
+      Alert.alert(t("delete_shift_q"), t("delete_shift_msg"), [
+        { text: t("cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("delete"),
           style: "destructive",
           onPress: async () => {
             const next = shifts.filter((s) => s.id !== id);
@@ -134,41 +140,45 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
+
+      <ActiveShiftTimerCard />
+
+
         <View style={styles.headerRow}>
-          <Text style={styles.title}>History</Text>
+          <Text style={styles.title}>{t("history_title")}</Text>
           <Pressable onPress={load} style={styles.refreshBtn}>
-            <Text style={styles.refreshText}>Refresh</Text>
+            <Text style={styles.refreshText}>{t("refresh")}</Text>
           </Pressable>
         </View>
 
         {/* Totals */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Totals</Text>
+          <Text style={styles.cardTitle}>{t("totals")}</Text>
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Today</Text>
+            <Text style={styles.totalLabel}>{t("today")}</Text>
             <Text style={styles.totalValue}>{fmtMoney(totals.today)}</Text>
           </View>
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>This Week</Text>
+            <Text style={styles.totalLabel}>{t("this_week")}</Text>
             <Text style={styles.totalValue}>{fmtMoney(totals.week)}</Text>
           </View>
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>This Month</Text>
+            <Text style={styles.totalLabel}>{t("this_month")}</Text>
             <Text style={styles.totalValue}>{fmtMoney(totals.month)}</Text>
           </View>
         </View>
 
         {/* Shifts */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Shifts</Text>
+          <Text style={styles.cardTitle}>{t("shifts")}</Text>
 
           {loading ? (
-            <Text style={styles.helper}>Loading...</Text>
+            <Text style={styles.helper}>{t("loading")}</Text>
           ) : shifts.length === 0 ? (
-            <Text style={styles.helper}>No shifts yet. Add your first shift.</Text>
+            <Text style={styles.helper}>{t("no_shifts")}</Text>
           ) : (
             shifts.map((s) => (
               <Pressable
@@ -178,33 +188,34 @@ export default function HistoryScreen() {
                 style={styles.shiftRow}
               >
                 <View style={{ flex: 1 }}>
-                  {/* ✅ HERE is the main change: workplace + role */}
                   <Text style={styles.shiftDate}>
-                    {s.isoDate} • {s.workplaceName ?? "Workplace"}
-                    {s.roleName ? ` • ${s.roleName}` : ""}
-                  </Text>
+  {s.isoDate} • {s.workplaceName ?? t("workplace")}
+  {s.roleName ? ` • ${s.roleName}` : ""}
+</Text>
+
 
                   <Text style={styles.shiftMeta}>
                     {fmtTime(s.startISO)} – {fmtTime(s.endISO)} • {s.workedHours}h
                   </Text>
 
-                  <Text style={styles.shiftMeta}>
-                    Tips: {fmtMoney(s.totalTips)} • Wage: {fmtMoney(s.hourlyPay)}
-                  </Text>
+                 <Text style={styles.shiftMeta}>
+  {t("tips_label")}: {fmtMoney(s.totalTips)} • {t("wage_label")}: {fmtMoney(s.hourlyPay)}
+</Text>
+
 
                   {!!s.note && <Text style={styles.note}>📝 {s.note}</Text>}
                 </View>
 
                 <View style={{ alignItems: "flex-end" }}>
                   <Text style={styles.earned}>{fmtMoney(s.totalEarned)}</Text>
-                  <Text style={styles.deleteHint}>Hold to delete</Text>
+                  <Text style={styles.deleteHint}>{t("hold_to_delete")}</Text>
                 </View>
               </Pressable>
             ))
           )}
         </View>
 
-        <Text style={styles.footer}>Tip: Tap a shift to edit. Long-press to delete.</Text>
+        <Text style={styles.footer}>{t("history_footer_hint")}</Text>
       </ScrollView>
     </SafeAreaView>
   );

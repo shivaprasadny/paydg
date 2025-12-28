@@ -14,6 +14,16 @@ import { getProfile } from "../src/storage/repositories/profileRepo";
 import { listWorkplaces } from "../src/storage/repositories/workplaceRepo";
 import { t, getLanguage } from "../src/i18n";
 
+import {
+  autoCloseIfNeeded,
+  getActivePunch,
+  ActivePunch,
+} from "../src/storage/repositories/punchRepo";
+
+import { usePunchTimer } from "../src/hooks/usePunchTimer";
+import { formatDuration } from "../src/utils/timeUtils";
+
+
 const SHIFTS_KEY = "paydg_shifts_v1";
 
 type Shift = {
@@ -36,7 +46,11 @@ function fmtMoney(n: number) {
 
 function fmtTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+  return d.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function startOfWeek(d: Date) {
@@ -74,12 +88,45 @@ function NavButton({ label, onPress }: { label: string; onPress: () => void }) {
   );
 }
 
+function StatRow({ label, earned, hours }: { label: string; earned: number; hours: number }) {
+  return (
+    <View
+      style={{
+        backgroundColor: "#0B0F1A",
+        borderWidth: 1,
+        borderColor: "#1F2937",
+        borderRadius: 12,
+        padding: 12,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+        }}
+      >
+        <Text style={{ color: "white", fontWeight: "800" }}>{label}</Text>
+        <Text style={{ color: "white", fontWeight: "900" }}>{fmtMoney(earned)}</Text>
+      </View>
+
+      <Text style={{ color: "#B8C0CC", marginTop: 6, fontSize: 12 }}>
+        Hours: {hours.toFixed(2)}h
+      </Text>
+    </View>
+  );
+}
+
 export default function Home() {
   const router = useRouter();
 
   const [profile, setProfile] = useState(getProfile());
   const [workplaces, setWorkplaces] = useState(listWorkplaces());
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [activePunch, setActivePunch] = useState<ActivePunch | null>(null);
+
+  // ✅ live timer based on activePunch start time
+  const elapsedMs = usePunchTimer(activePunch?.startedAtISO ?? null);
 
   const loadShifts = useCallback(async () => {
     const raw = await AsyncStorage.getItem(SHIFTS_KEY);
@@ -90,9 +137,15 @@ export default function Home() {
 
   useFocusEffect(
     useCallback(() => {
-      setProfile(getProfile());
-      setWorkplaces(listWorkplaces());
-      loadShifts();
+      (async () => {
+        await autoCloseIfNeeded();
+        setProfile(getProfile());
+        setWorkplaces(listWorkplaces());
+        await loadShifts();
+
+        const a = await getActivePunch();
+        setActivePunch(a);
+      })();
     }, [loadShifts])
   );
 
@@ -138,7 +191,6 @@ export default function Home() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#0B0F1A" }}>
-      {/* ✅ Scroll enabled */}
       <ScrollView
         contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -148,12 +200,45 @@ export default function Home() {
           <Text style={{ color: "white", fontSize: 28, fontWeight: "800" }}>
             {t("hi")} {profile.userName} 👋
           </Text>
-          <Text style={{ color: "#6B7280", fontSize: 12 }}>{getLanguage().toUpperCase()}</Text>
+          <Text style={{ color: "#6B7280", fontSize: 12 }}>
+            {getLanguage().toUpperCase()}
+          </Text>
         </View>
 
         <Text style={{ color: "#B8C0CC", marginTop: 8 }}>
           Workplaces: {workplaces.length}
         </Text>
+
+        {/* ✅ LIVE TIMER CARD */}
+        {activePunch && elapsedMs !== null && (
+          <View
+            style={{
+              backgroundColor: "#052e16",
+              borderRadius: 16,
+              padding: 16,
+              marginTop: 14,
+              borderWidth: 1,
+              borderColor: "#16a34a",
+            }}
+          >
+            <Text style={{ color: "#bbf7d0", fontWeight: "900", fontSize: 16 }}>
+              🟢 Shift In Progress
+            </Text>
+
+            <Text style={{ color: "#86efac", marginTop: 6 }}>
+              {activePunch.workplaceName ?? "Workplace"}
+              {activePunch.roleName ? ` • ${activePunch.roleName}` : ""}
+            </Text>
+
+            <Text style={{ color: "white", fontSize: 28, fontWeight: "900", marginTop: 8 }}>
+              ⏱ {formatDuration(elapsedMs)}
+            </Text>
+
+            <Text style={{ color: "#86efac", fontSize: 12, marginTop: 4 }}>
+              Auto-closes at 14 hours
+            </Text>
+          </View>
+        )}
 
         {/* Quick Stats */}
         <View
@@ -216,7 +301,7 @@ export default function Home() {
                 {fmtMoney(last.totalEarned)}
               </Text>
               <Text style={{ color: "#6B7280", marginTop: 6, fontSize: 12 }}>
-                Tap to edit this shift
+                {t("tap_to_edit_shift")}
               </Text>
             </TouchableOpacity>
           )}
@@ -224,45 +309,24 @@ export default function Home() {
 
         {/* Buttons */}
         <View style={{ marginTop: 14 }}>
-        <NavButton label={t("add_shift")} onPress={() => router.push("/add-shift")} />
-<NavButton label={t("entries")} onPress={() => router.push("/entries")} />
-<NavButton label={t("history")} onPress={() => router.push("/history")} />
-<NavButton label={t("stats")} onPress={() => router.push("/stats")} />
-
-<NavButton label={t("manage_workplaces")} onPress={() => router.push("/workplaces")} />
-<NavButton label={t("roles_btn")} onPress={() => router.push("/roles")} />
-<NavButton label={t("settings_btn")} onPress={() => router.push("/settings")} />
-<NavButton label={t("about_btn")} onPress={() => router.push("/about")} />
-
+          <NavButton label="⏱️ Punch In/Out" onPress={() => router.push("/punch")} />
+          <NavButton label={t("add_shift")} onPress={() => router.push("/add-shift")} />
+          <NavButton label={t("entries")} onPress={() => router.push("/entries")} />
+          <NavButton label={t("history")} onPress={() => router.push("/history")} />
+          <NavButton label={t("stats")} onPress={() => router.push("/stats")} />
+          <NavButton label="📅 Monthly Summary" onPress={() => router.push("/monthly-summary")} />
+          <NavButton label="✨ Insights" onPress={() => router.push("/insights")} />
+          <NavButton label={t("manage_workplaces")} onPress={() => router.push("/workplaces")} />
+          <NavButton label={t("roles_btn")} onPress={() => router.push("/roles")} />
+          <NavButton label={t("settings_btn")} onPress={() => router.push("/settings")} />
+          <NavButton label={t("about_btn")} onPress={() => router.push("/about")} />
+          <NavButton label="💾 Backup / Restore" onPress={() => router.push("/backup")} />
         </View>
 
         <Text style={{ color: "#6B7280", marginTop: 16, fontSize: 12 }}>
-          Tip: Set defaults in Settings — Add Shift auto-fills.
+          {t("tip_defaults")}
         </Text>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function StatRow({ label, earned, hours }: { label: string; earned: number; hours: number }) {
-  return (
-    <View
-      style={{
-        backgroundColor: "#0B0F1A",
-        borderWidth: 1,
-        borderColor: "#1F2937",
-        borderRadius: 12,
-        padding: 12,
-      }}
-    >
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
-        <Text style={{ color: "white", fontWeight: "800" }}>{label}</Text>
-        <Text style={{ color: "white", fontWeight: "900" }}>{fmtMoney(earned)}</Text>
-      </View>
-
-      <Text style={{ color: "#B8C0CC", marginTop: 6, fontSize: 12 }}>
-        Hours: {hours.toFixed(2)}h
-      </Text>
-    </View>
   );
 }

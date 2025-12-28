@@ -31,6 +31,11 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { getProfile } from "../storage/repositories/profileRepo";
 import { listWorkplaces } from "../storage/repositories/workplaceRepo";
 import { toISODate } from "../utils/dateUtils";
+import { t } from "../i18n";
+import { useLang } from "../i18n/useLang";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import Screen from "../components/Screen";
+
 
 /* =========================================================
    Types
@@ -276,6 +281,8 @@ export default function AddShiftScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+
+                  <ActiveShiftTimerCard />
           {/* Header */}
           <View style={styles.headerRow}>
             <Text style={styles.title}>Add Shift</Text>

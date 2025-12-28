@@ -6,6 +6,7 @@
 // ✅ Pickers (date/time) remain the same
 // ✅ Saves roleName/workplaceName into each shift for History/Entries display
 // ---------------------------------------------------------
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -28,14 +29,18 @@ import { listWorkplaces, getWorkplaceById } from "../storage/repositories/workpl
 import { listRoles, getRoleById } from "../storage/repositories/roleRepo";
 import { toISODate } from "../utils/dateUtils";
 
+import { t } from "../i18n";
+import { useLang } from "../i18n/useLang";
+import Screen from "../components/Screen";
+
 type Shift = {
   id: string;
 
   workplaceId: string;
   workplaceName?: string;
 
-  roleId?: string;       // ✅ new
-  roleName?: string;     // ✅ new
+  roleId?: string;
+  roleName?: string;
 
   isoDate: string;
   startISO: string;
@@ -135,6 +140,10 @@ function TapPickerField({
 
 export default function AddShiftScreen() {
   const router = useRouter();
+
+  // ✅ IMPORTANT: makes this screen re-render when language changes
+  useLang();
+
   const workplaces = useMemo(() => listWorkplaces(), []);
   const roles = useMemo(() => listRoles(), []);
 
@@ -253,15 +262,15 @@ export default function AddShiftScreen() {
 
   async function saveShift() {
     if (!workplaceId) {
-      Alert.alert("Workplace", "Please select a workplace.");
+      Alert.alert(t("workplace"), t("select_workplace"));
       return;
     }
     if (hourlyWage <= 0) {
-      Alert.alert("Hourly wage", "Please enter your hourly wage.");
+      Alert.alert(t("hourly_wage"), t("enter_hourly_wage"));
       return;
     }
     if (preview.minutes <= 0) {
-      Alert.alert("Shift time", "End time must be after start time.");
+      Alert.alert(t("shift_time"), t("end_after_start"));
       return;
     }
 
@@ -304,27 +313,31 @@ export default function AddShiftScreen() {
       arr.unshift(shift);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
 
-      Alert.alert("Saved", "Shift saved ✅");
+      Alert.alert(t("saved"), t("shift_saved"));
       router.back();
     } catch {
-      Alert.alert("Error", "Could not save shift. Please try again.");
+      Alert.alert(t("error"), t("shift_save_failed"));
     }
   }
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
+      <ActiveShiftTimerCard />
         {/* Header */}
         <View style={styles.topRow}>
-          <Text style={styles.title}>Add Shift</Text>
+          <Text style={styles.title}>{t("add_shift_title")}</Text>
           <Pressable style={styles.historyBtn} onPress={() => router.push("/history")}>
-            <Text style={styles.historyBtnText}>History</Text>
+            <Text style={styles.historyBtnText}>{t("history")}</Text>
           </Pressable>
         </View>
 
+  
+
+
         {/* Workplace */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Workplace</Text>
+          <Text style={styles.cardTitle}>{t("workplace")}</Text>
           <View style={styles.chipsWrap}>
             {workplaces.map((w: any) => {
               const active = w.id === workplaceId;
@@ -346,7 +359,7 @@ export default function AddShiftScreen() {
 
         {/* Role */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Role</Text>
+          <Text style={styles.cardTitle}>{t("role")}</Text>
 
           <View style={styles.chipsWrap}>
             {/* "No role" option */}
@@ -357,7 +370,9 @@ export default function AddShiftScreen() {
               }}
               style={[styles.chip, roleId === "" && styles.chipActive]}
             >
-              <Text style={[styles.chipText, roleId === "" && styles.chipTextActive]}>No role</Text>
+              <Text style={[styles.chipText, roleId === "" && styles.chipTextActive]}>
+                {t("no_role")}
+              </Text>
             </Pressable>
 
             {roles.map((r: any) => {
@@ -377,14 +392,16 @@ export default function AddShiftScreen() {
             })}
           </View>
 
-          {roles.length === 0 && <Text style={styles.helper}>Add roles in Home → Roles.</Text>}
+          {roles.length === 0 && <Text style={styles.helper}>{t("add_roles_hint")}</Text>}
         </View>
 
         {/* Date */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Shift Date</Text>
-          <TapPickerField label="Date" valueText={formatDate(shiftDate)} onPress={() => setDateOpen(true)} />
-          <Text style={styles.helper}>Saved as: {isoDate}</Text>
+          <Text style={styles.cardTitle}>{t("shift_date_title")}</Text>
+          <TapPickerField label={t("date")} valueText={formatDate(shiftDate)} onPress={() => setDateOpen(true)} />
+          <Text style={styles.helper}>
+            {t("saved_as")} {isoDate}
+          </Text>
 
           <DateTimePickerModal
             isVisible={dateOpen}
@@ -400,82 +417,101 @@ export default function AddShiftScreen() {
 
         {/* Time */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Shift Time</Text>
-          <View style={{ flexDirection: "row", gap: 12 }}>
-            <View style={{ flex: 1 }}>
-              <TapPickerField label="Start" valueText={formatTime12(startTime)} onPress={() => setStartOpen(true)} />
-              <DateTimePickerModal
-                isVisible={startOpen}
-                mode="time"
-                date={startTime}
-                is24Hour={false}
-                onConfirm={(d) => {
-                  setStartOpen(false);
-                  setStartTime(d);
-                }}
-                onCancel={() => setStartOpen(false)}
-              />
-            </View>
+          <Text style={styles.cardTitle}>{t("shift_time")}</Text>
 
-            <View style={{ flex: 1 }}>
-              <TapPickerField label="End" valueText={formatTime12(endTime)} onPress={() => setEndOpen(true)} />
-              <DateTimePickerModal
-                isVisible={endOpen}
-                mode="time"
-                date={endTime}
-                is24Hour={false}
-                onConfirm={(d) => {
-                  setEndOpen(false);
-                  setEndTime(d);
-                }}
-                onCancel={() => setEndOpen(false)}
-              />
-            </View>
-          </View>
+          <TapPickerField
+            label={t("start_time")}
+            valueText={formatTime12(startTime)}
+            onPress={() => setStartOpen(true)}
+          />
+          <TapPickerField
+            label={t("end_time")}
+            valueText={formatTime12(endTime)}
+            onPress={() => setEndOpen(true)}
+          />
 
-          <Text style={styles.helper}>Overnight supported.</Text>
-        </View>
-
-        {/* Break */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Break</Text>
-
-          <View style={styles.rowBetween}>
-            <Text style={styles.label}>Deduct unpaid break</Text>
+          <View style={[styles.rowBetween, { marginTop: 6 }]}>
+            <Text style={styles.label}>{t("deduct_unpaid_break")}</Text>
             <Switch value={unpaidBreak} onValueChange={setUnpaidBreak} />
           </View>
 
-          <Text style={[styles.label, { marginTop: 10 }]}>Break minutes</Text>
-          <TextInput value={breakMinutesText} onChangeText={setBreakMinutesText} keyboardType="number-pad" style={styles.input} />
+          <Text style={[styles.label, { marginTop: 10 }]}>{t("break_minutes")}</Text>
+          <TextInput
+            value={breakMinutesText}
+            onChangeText={setBreakMinutesText}
+            keyboardType="number-pad"
+            placeholder="30"
+            style={styles.input}
+          />
+
+          <DateTimePickerModal
+            isVisible={startOpen}
+            mode="time"
+            date={startTime}
+            onConfirm={(d) => {
+              setStartOpen(false);
+              setStartTime(d);
+            }}
+            onCancel={() => setStartOpen(false)}
+          />
+
+          <DateTimePickerModal
+            isVisible={endOpen}
+            mode="time"
+            date={endTime}
+            onConfirm={(d) => {
+              setEndOpen(false);
+              setEndTime(d);
+            }}
+            onCancel={() => setEndOpen(false)}
+          />
         </View>
 
-        {/* Pay & Tips */}
+        {/* Pay + Tips */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Pay & Tips</Text>
+          <Text style={styles.cardTitle}>{t("pay_tips_title")}</Text>
 
-          <Text style={styles.label}>Hourly wage</Text>
-          <TextInput value={hourlyWageText} onChangeText={setHourlyWageText} keyboardType="decimal-pad" style={styles.input} />
+          <Text style={styles.label}>{t("hourly_wage")}</Text>
+          <TextInput
+            value={hourlyWageText}
+            onChangeText={setHourlyWageText}
+            keyboardType="decimal-pad"
+            placeholder={t("eg_15")}
+            style={styles.input}
+          />
 
           <View style={{ flexDirection: "row", gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Cash tips</Text>
-              <TextInput value={cashTipsText} onChangeText={setCashTipsText} keyboardType="decimal-pad" style={styles.input} />
+              <Text style={styles.label}>{t("cash_tips")}</Text>
+              <TextInput
+                value={cashTipsText}
+                onChangeText={setCashTipsText}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                style={styles.input}
+              />
             </View>
 
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Card tips</Text>
-              <TextInput value={creditTipsText} onChangeText={setCreditTipsText} keyboardType="decimal-pad" style={styles.input} />
+              <Text style={styles.label}>{t("card_tips")}</Text>
+              <TextInput
+                value={creditTipsText}
+                onChangeText={setCreditTipsText}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                style={styles.input}
+              />
             </View>
           </View>
         </View>
 
         {/* Note */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Note</Text>
+          <Text style={styles.cardTitle}>{t("note")}</Text>
           <TextInput
             value={note}
             onChangeText={setNote}
-            placeholder="Optional note…"
+            placeholder={t("note_placeholder")}
             multiline
             style={[styles.input, { minHeight: 90, textAlignVertical: "top", paddingTop: 12 }]}
           />
@@ -483,36 +519,41 @@ export default function AddShiftScreen() {
 
         {/* Preview */}
         <View style={styles.previewCard}>
-          <Text style={styles.previewTitle}>Preview</Text>
+          <Text style={styles.previewTitle}>{t("preview")}</Text>
 
           <View style={styles.previewRow}>
-            <Text style={styles.previewLabel}>Hours</Text>
+            <Text style={styles.previewLabel}>{t("hours")}</Text>
             <Text style={styles.previewValue}>{preview.hours.toFixed(2)}h</Text>
           </View>
 
           <View style={styles.previewRow}>
-            <Text style={styles.previewLabel}>Hourly pay</Text>
+            <Text style={styles.previewLabel}>{t("hourly_pay")}</Text>
             <Text style={styles.previewValue}>{fmtMoney(preview.hourlyPay)}</Text>
           </View>
 
           <View style={styles.previewRow}>
-            <Text style={styles.previewLabel}>Tips</Text>
+            <Text style={styles.previewLabel}>{t("tips")}</Text>
             <Text style={styles.previewValue}>{fmtMoney(preview.tips)}</Text>
           </View>
 
           <View style={[styles.previewRow, { marginTop: 6 }]}>
-            <Text style={[styles.previewLabel, { fontWeight: "900" }]}>Total</Text>
+            <Text style={[styles.previewLabel, { fontWeight: "900" }]}>{t("total")}</Text>
             <Text style={[styles.previewValue, { fontSize: 18 }]}>{fmtMoney(preview.total)}</Text>
           </View>
         </View>
 
+        {/* Save */}
         <Pressable style={styles.saveBtn} onPress={saveShift}>
-          <Text style={styles.saveBtnText}>Save Shift</Text>
+          <Text style={styles.saveBtnText}>{t("save_shift")}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+/* =========================================================
+   Styles (Light theme, matches settings.tsx)
+========================================================= */
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f7f7f7" },
@@ -521,7 +562,12 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { fontSize: 28, fontWeight: "800" },
 
-  historyBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: "#111" },
+  historyBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#111",
+  },
   historyBtnText: { color: "#fff", fontWeight: "800" },
 
   card: {
@@ -576,12 +622,24 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, fontWeight: "800" },
   chipTextActive: { color: "#fff" },
 
-  previewCard: { backgroundColor: "#111", borderRadius: 16, padding: 14, gap: 8 },
+  previewCard: {
+    backgroundColor: "#111",
+    borderRadius: 16,
+    padding: 14,
+    gap: 8,
+  },
   previewTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
   previewRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   previewLabel: { color: "rgba(255,255,255,0.75)", fontSize: 13 },
   previewValue: { color: "#fff", fontSize: 15, fontWeight: "900" },
 
-  saveBtn: { height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "#111", marginTop: 6 },
+  saveBtn: {
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#111",
+    marginTop: 6,
+  },
   saveBtnText: { color: "#fff", fontSize: 16, fontWeight: "900" },
 });

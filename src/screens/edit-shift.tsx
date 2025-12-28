@@ -29,6 +29,10 @@ import { listWorkplaces, getWorkplaceById } from "../storage/repositories/workpl
 import { listRoles, getRoleById } from "../storage/repositories/roleRepo";
 import { getProfile } from "../storage/repositories/profileRepo";
 import { toISODate } from "../utils/dateUtils";
+import { t } from "../i18n";
+import { useLang } from "../i18n/useLang";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import Screen from "../components/Screen";
 
 const STORAGE_KEY = "paydg_shifts_v1";
 
@@ -383,6 +387,10 @@ export default function EditShiftScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
+
+
+                <ActiveShiftTimerCard />
+
         {/* Header */}
         <View style={styles.topRow}>
           <Text style={styles.title}>Edit Shift</Text>

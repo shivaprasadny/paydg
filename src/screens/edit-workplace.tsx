@@ -13,6 +13,10 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { getWorkplaceById, updateWorkplace } from "../storage/repositories/workplaceRepo";
+import { t } from "../i18n";
+import { useLang } from "../i18n/useLang";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import Screen from "../components/Screen";
 
 function parseMoney(s: string) {
   const cleaned = s.replace(/[^0-9.]/g, "");
@@ -101,6 +105,8 @@ export default function EditWorkplaceScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
+
+                <ActiveShiftTimerCard />
         <Text style={styles.title}>Edit Workplace</Text>
 
         <View style={styles.card}>

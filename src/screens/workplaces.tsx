@@ -1,16 +1,9 @@
 // src/screens/workplaces.tsx
-// ---------------------------------------------------------
-// Workplaces Screen
-// ✅ Add / Edit / Delete workplace
-// ✅ Uses workplaceRepo.ts (addWorkplace, updateWorkplace, deleteWorkplace, listWorkplaces)
-// ✅ i18n (English/Spanish) + reactive updates via useLang()
-// ---------------------------------------------------------
 
 import React, { useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
-  SafeAreaView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -28,27 +21,21 @@ import {
 
 import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import Screen from "../components/Screen";
 
 export default function WorkplacesScreen() {
   const router = useRouter();
   const profile = getProfile();
 
-  // ✅ rerender when language changes
   useLang();
 
-  // Used to re-run listWorkplaces() after add/edit/delete
   const [refreshKey, setRefreshKey] = useState(0);
-
-  // Edit mode state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
 
-  // Pull workplaces from cache (sync)
   const workplaces = useMemo(() => listWorkplaces(), [refreshKey]);
 
-  /* ---------------------------
-     Helpers
-  --------------------------- */
   function resetForm() {
     setEditingId(null);
     setName("");
@@ -59,26 +46,18 @@ export default function WorkplacesScreen() {
     setName(item.name);
   }
 
-  /* ---------------------------
-     Save (Add or Update)
-  --------------------------- */
   async function onSave() {
     const trimmed = name.trim();
 
     if (trimmed.length < 2) {
-      Alert.alert(
-        t("workplace_name_required"),
-        t("workplace_name_required_msg")
-      );
+      Alert.alert(t("workplace_name_required"), t("workplace_name_required_msg"));
       return;
     }
 
     try {
       if (editingId) {
-        // ✅ repo signature: updateWorkplace(id, patch)
         await updateWorkplace(editingId, { name: trimmed });
       } else {
-        // ✅ repo signature: addWorkplace(name)
         await addWorkplace(trimmed);
       }
 
@@ -89,9 +68,6 @@ export default function WorkplacesScreen() {
     }
   }
 
-  /* ---------------------------
-     Delete
-  --------------------------- */
   function onDelete(id: string, wpName: string) {
     Alert.alert(
       t("delete_workplace_q"),
@@ -118,16 +94,14 @@ export default function WorkplacesScreen() {
   const canContinue = workplaces.length > 0;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0B0F1A" }}>
-      {/* ---------------- Header ---------------- */}
+    <Screen scroll={false}>
+      <ActiveShiftTimerCard />
+
+      {/* Header */}
       <View style={{ padding: 20 }}>
         <Text style={{ fontSize: 26, fontWeight: "800", color: "white" }}>
           {t("workplaces_title")} 🏢
         </Text>
-
-
-
-
 
         <Text style={{ fontSize: 14, color: "#B8C0CC", marginTop: 6 }}>
           {profile?.userName ? `${profile.userName}, ` : ""}
@@ -135,7 +109,7 @@ export default function WorkplacesScreen() {
         </Text>
       </View>
 
-      {/* ---------------- Form Card ---------------- */}
+      {/* Form */}
       <View
         style={{
           marginHorizontal: 20,
@@ -201,14 +175,14 @@ export default function WorkplacesScreen() {
         </View>
       </View>
 
-      {/* ---------------- List ---------------- */}
+      {/* List */}
       <View style={{ flex: 1, marginTop: 14 }}>
         <FlatList
           data={workplaces}
           keyExtractor={(item: any) => item.id}
           contentContainerStyle={{
             paddingHorizontal: 20,
-            paddingBottom: 14,
+            paddingBottom: 120, // ✅ extra space so bottom is never cut on Android
             gap: 10,
           }}
           renderItem={({ item }: any) => (
@@ -261,8 +235,8 @@ export default function WorkplacesScreen() {
         />
       </View>
 
-      {/* ---------------- Continue ---------------- */}
-      <View style={{ padding: 20 }}>
+      {/* Continue */}
+      <View style={{ padding: 20, paddingBottom: 30 }}>
         <TouchableOpacity
           onPress={() => router.replace("/")}
           disabled={!canContinue}
@@ -279,6 +253,6 @@ export default function WorkplacesScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }

@@ -17,6 +17,9 @@ import {
 import { useRouter } from "expo-router";
 
 import { getProfile, upsertProfile } from "../src/storage/repositories/profileRepo";
+import { t } from "../src/i18n";
+import { useLang } from "../src/i18n/useLang";
+
 
 export default function ProfileScreen() {
   const router = useRouter();

@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { getProfile, upsertProfile } from "../src/storage/repositories/profileRepo";
+import { t } from "../src/i18n";
+import { useLang } from "../src/i18n/useLang";
 
 export default function EditProfile() {
   const router = useRouter();

@@ -15,6 +15,9 @@ import { addRole, listRoles } from "../storage/repositories/roleRepo";
 import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
 
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import Screen from "../components/Screen";
+
 export default function RolesScreen() {
   const router = useRouter();
 
@@ -43,6 +46,8 @@ export default function RolesScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
+
+                <ActiveShiftTimerCard />
         <Text style={styles.title}>{t("roles_title")}</Text>
 
         {/* ---------------- Add Role ---------------- */}

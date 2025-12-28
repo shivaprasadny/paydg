@@ -17,6 +17,10 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { t } from "../i18n";
+import { useLang } from "../i18n/useLang";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import Screen from "../components/Screen";
 
 type Shift = {
   id: string;
@@ -84,7 +88,8 @@ export default function WeekDetailsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Week</Text>
+        
+                <ActiveShiftTimerCard />
         <Text style={styles.subTitle}>{label}</Text>
 
         <View style={styles.card}>

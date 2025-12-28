@@ -12,18 +12,26 @@
       "backgroundColor": "#0B0F1A"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shivaprasadnyc.paydg"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0B0F1A"
-      }
+      },
+      "package": "com.shivaprasadnyc.paydg"
     },
     "plugins": [
       "expo-router",
       "@react-native-community/datetimepicker",
       "expo-localization"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e1759fdf-6df5-4b05-8ac2-b5e8cfafe486"
+      }
+    }
   }
 }

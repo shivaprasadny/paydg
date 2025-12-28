@@ -27,6 +27,52 @@ const i18n = new I18n({
     clear: "Clear",
     continue: "Continue",
 
+    /* ---- History / Entries ---- */
+    history_title: "History",
+    entries_title: "Entries",
+
+    totals: "Totals",
+    refresh: "Refresh",
+    loading: "Loading...",
+    no_shifts_yet: "No shifts yet. Add your first shift.",
+
+    tips_label: "Tips",
+    wage_label: "Wage",
+    hold_to_delete: "Hold to delete",
+
+    delete_shift_q: "Delete shift?",
+    delete_shift_msg: "This cannot be undone.",
+
+    // ✅ Footer hint (correct key)
+    history_footer_hint: "Tip: Tap a shift to edit. Long-press to delete.",
+    // ✅ Backwards-compatible typo key (so nothing breaks)
+    history_footrt_hint: "Tip: Tap a shift to edit. Long-press to delete.",
+
+    day_title: "Day",
+    totals_title: "Totals",
+    shifts: "Shifts",
+    cash: "Cash",
+    card: "Card",
+    total: "Total",
+    no_shifts_for_day: "No shifts for this day.",
+    tap_shift_to_edit: "Tap any shift to edit.",
+    workplace_fallback: "Workplace",
+
+    /* ---- Edit Role ---- */
+    edit_role_title: "Edit Role",
+    role_not_found: "Role not found.",
+    go_back: "Go back",
+    role_updated: "Role updated ✅",
+    delete_role_help:
+      "This will remove it from Roles list. Old shifts will still keep roleName saved.",
+    basics: "Basics",
+    role_name_placeholder: "e.g. Server",
+    defaults_optional: "Defaults (optional)",
+    use_role_defaults: "Use role defaults",
+    role_defaults_help: "If enabled, Add Shift will auto-fill from Role first.",
+    leave_blank_fallback: "Leave blank to use Workplace/Settings",
+    delete_role_btn: "Delete Role",
+
     /* ---------------- Language ---------------- */
     language: "Language",
     english: "English",
@@ -94,57 +140,79 @@ const i18n = new I18n({
     role_name_required_msg: "Please enter at least 2 characters.",
     no_roles_helper: "No roles yet. Add Server / Bartender / Runner etc.",
 
-// ---- Shifts / Add Shift ----
-add_shift_title: "Add Shift",
-edit_shift_title: "Edit Shift",
-date: "Date",
-start_time: "Start time",
-end_time: "End time",
-workplace: "Workplace",
-role: "Role",
-select_workplace: "Select workplace",
-select_role: "Select role",
-hourly_wage: "Hourly wage",
-cash_tips: "Cash tips",
-credit_tips: "Credit tips",
-unpaid_break: "Unpaid break",
-break_minutes: "Break minutes",
-note: "Note",
-save_shift: "Save shift",
-update_shift: "Update shift",
-pick: "Pick",
-close: "Close",
+    /* ---- Shifts / Add Shift ---- */
+    add_shift_title: "Add Shift",
+    edit_shift_title: "Edit Shift",
+    date: "Date",
+    start_time: "Start time",
+    end_time: "End time",
+    workplace: "Workplace",
+    role: "Role",
+    select_workplace: "Select workplace",
+    select_role: "Select role",
+    hourly_wage: "Hourly wage",
+    cash_tips: "Cash tips",
+    credit_tips: "Credit tips",
+    unpaid_break: "Unpaid break",
+    break_minutes: "Break minutes",
+    note: "Note",
+    save_shift: "Save shift",
+    update_shift: "Update shift",
+    pick: "Pick",
+    close: "Close",
 
-err_missing_workplace: "Workplace required",
-err_missing_workplace_msg: "Please select a workplace.",
-err_invalid_time: "Time invalid",
-err_invalid_time_msg: "End time must be after start time (overnight allowed).",
+    err_missing_workplace: "Workplace required",
+    err_missing_workplace_msg: "Please select a workplace.",
+    err_invalid_time: "Time invalid",
+    err_invalid_time_msg: "End time must be after start time (overnight allowed).",
 
-// ---- History / Entries ----
-history_title: "History",
-entries_title: "Entries",
-refresh: "Refresh",
-loading: "Loading...",
-no_shifts_yet: "No shifts yet. Add your first shift.",
-hold_to_delete: "Hold to delete",
-delete_shift_q: "Delete shift?",
-delete_shift_msg: "This cannot be undone.",
+    /* ---- Stats ---- */
+    stats_title: "Stats",
+    today_total: "Today total",
+    week_total: "Week total",
+    month_total: "Month total",
+    year_total: "Year total",
+    hours: "Hours",
+    tips: "Tips",
+    wage_total: "Wage",
+    earned: "Earned",
+    select_week: "Select week",
+    select_month: "Select month",
+    select_year: "Select year",
 
-// ---- Stats ----
-stats_title: "Stats",
-today_total: "Today total",
-week_total: "Week total",
-month_total: "Month total",
-year_total: "Year total",
-hours: "Hours",
-tips: "Tips",
-wage_total: "Wage",
-earned: "Earned",
-select_week: "Select week",
-select_month: "Select month",
-select_year: "Select year",
+    profile_title: "Profile",
+    edit_profile_title: "Edit Profile",
 
+    edit_workplace_title: "Edit Workplace",
+    day_details_title: "Day Details",
+    week_details_title: "Week Details",
+    more_title: "More",
 
+    no_role: "No role",
+    add_roles_hint: "Add roles in Home → Roles.",
+    shift_date_title: "Shift Date",
+
+    saved_as: "Saved as:",
+    shift_time: "Shift time",
+
+    deduct_unpaid_break: "Deduct unpaid break",
+
+    pay_tips_title: "Pay & Tips",
+
+    enter_hourly_wage: "Please enter your hourly wage.",
+    eg_15: "e.g. 15",
+
+    card_tips: "Card tips",
+
+    note_placeholder: "Optional note…",
+    preview: "Preview",
+
+    hourly_pay: "Hourly pay",
+
+    shift_saved: "Shift saved ✅",
+    end_after_start: "End time must be after start time.",
+    error: "Error",
+    shift_save_failed: "Could not save shift. Please try again.",
   },
 
   es: {
@@ -160,8 +228,55 @@ select_year: "Select year",
     clear: "Limpiar",
     continue: "Continuar",
 
+    /* ---- History / Entries ---- */
+    history_title: "Historial",
+    entries_title: "Entradas",
 
+    totals: "Totales",
+    today: "Hoy",
+    this_week: "Esta semana",
+    this_month: "Este mes",
+    shifts: "Turnos",
+    tips_label: "Propinas",
+    wage_label: "Salario",
+    hold_to_delete: "Mantén presionado para borrar",
+    no_shifts: "No hay turnos",
+    refresh: "Actualizar",
+    loading: "Cargando...",
+    no_shifts_yet: "Todavía no hay turnos. Agrega tu primer turno.",
 
+    delete_shift_q: "¿Eliminar turno?",
+    delete_shift_msg: "No se puede deshacer.",
+
+    // ✅ Footer hint (correct key)
+    history_footer_hint: "Tip: Toca un turno para editar. Mantén presionado para eliminar.",
+    // ✅ Backwards-compatible typo key
+    history_footrt_hint: "Tip: Toca un turno para editar. Mantén presionado para eliminar.",
+
+    /* ---- Day details ---- */
+    day_title: "Día",
+    totals_title: "Totales",
+    cash: "Efectivo",
+    card: "Tarjeta",
+    total: "Total",
+    no_shifts_for_day: "No hay turnos para este día.",
+    tap_shift_to_edit: "Toca cualquier turno para editar.",
+    workplace_fallback: "Lugar",
+
+    /* ---- Edit Role ---- */
+    edit_role_title: "Editar rol",
+    role_not_found: "Rol no encontrado.",
+    go_back: "Volver",
+    role_updated: "Rol actualizado ✅",
+    delete_role_help:
+      "Esto lo elimina de la lista de Roles. Los turnos viejos seguirán guardando el nombre del rol.",
+    basics: "Básico",
+    role_name_placeholder: "Ej. Mesero",
+    defaults_optional: "Valores por defecto (opcional)",
+    use_role_defaults: "Usar valores por defecto del rol",
+    role_defaults_help: "Si está activado, Agregar Turno se rellenará primero desde el Rol.",
+    leave_blank_fallback: "Déjalo vacío para usar Lugar/Configuración",
+    delete_role_btn: "Eliminar rol",
 
     /* ---------------- Language ---------------- */
     language: "Idioma",
@@ -170,11 +285,7 @@ select_year: "Select year",
 
     /* ---------------- Home ---------------- */
     quick_stats: "Resumen rápido",
-    today: "Hoy",
-    this_week: "Esta semana",
-    this_month: "Este mes",
     last_shift: "Último turno",
-    no_shifts: "Todavía no hay turnos. Agrega tu primer turno.",
     tap_to_edit_shift: "Toca para editar este turno",
     tip_defaults:
       "Tip: Ajusta valores en Configuración — Agregar Turno se rellena solo.",
@@ -233,58 +344,79 @@ select_year: "Select year",
     no_roles_helper:
       "Todavía no hay roles. Agrega Mesero / Bartender / Runner, etc.",
 
+    /* ---- Shifts / Add Shift ---- */
+    add_shift_title: "Agregar turno",
+    edit_shift_title: "Editar turno",
+    date: "Fecha",
+    start_time: "Hora de inicio",
+    end_time: "Hora de fin",
+    workplace: "Lugar de trabajo",
+    role: "Rol",
+    select_workplace: "Seleccionar lugar",
+    select_role: "Seleccionar rol",
+    hourly_wage: "Pago por hora",
+    cash_tips: "Propinas en efectivo",
+    credit_tips: "Propina tarjeta",
+    unpaid_break: "Descanso no pagado",
+    break_minutes: "Minutos de descanso",
+    note: "Nota",
+    save_shift: "Guardar turno",
+    update_shift: "Actualizar turno",
+    pick: "Elegir",
+    close: "Cerrar",
 
-// ---- Turnos / Agregar Turno ----
-add_shift_title: "Agregar turno",
-edit_shift_title: "Editar turno",
-date: "Fecha",
-start_time: "Hora inicio",
-end_time: "Hora fin",
-workplace: "Lugar",
-role: "Rol",
-select_workplace: "Seleccionar lugar",
-select_role: "Seleccionar rol",
-hourly_wage: "Pago por hora",
-cash_tips: "Propina efectivo",
-credit_tips: "Propina tarjeta",
-unpaid_break: "Descanso no pagado",
-break_minutes: "Minutos descanso",
-note: "Nota",
-save_shift: "Guardar turno",
-update_shift: "Actualizar turno",
-pick: "Elegir",
-close: "Cerrar",
+    err_missing_workplace: "Falta lugar",
+    err_missing_workplace_msg: "Selecciona un lugar de trabajo.",
+    err_invalid_time: "Hora inválida",
+    err_invalid_time_msg: "La hora de fin debe ser después del inicio (se permite noche).",
 
-err_missing_workplace: "Falta lugar",
-err_missing_workplace_msg: "Selecciona un lugar de trabajo.",
-err_invalid_time: "Hora inválida",
-err_invalid_time_msg: "La hora de fin debe ser después del inicio (se permite noche).",
+    /* ---- Stats ---- */
+    stats_title: "Estadísticas",
+    today_total: "Total de hoy",
+    week_total: "Total semana",
+    month_total: "Total mes",
+    year_total: "Total año",
+    hours: "Horas",
+    tips: "Propinas",
+    wage_total: "Salario",
+    earned: "Ganado",
+    select_week: "Elegir semana",
+    select_month: "Elegir mes",
+    select_year: "Elegir año",
 
-// ---- Historial / Entradas ----
-history_title: "Historial",
-entries_title: "Entradas",
-refresh: "Actualizar",
-loading: "Cargando...",
-no_shifts_yet: "Todavía no hay turnos. Agrega tu primer turno.",
-hold_to_delete: "Mantén para borrar",
-delete_shift_q: "¿Eliminar turno?",
-delete_shift_msg: "No se puede deshacer.",
+    profile_title: "Perfil",
+    edit_profile_title: "Editar perfil",
 
-// ---- Estadísticas ----
-stats_title: "Estadísticas",
-today_total: "Total de hoy",
-week_total: "Total semana",
-month_total: "Total mes",
-year_total: "Total año",
-hours: "Horas",
-tips: "Propinas",
-wage_total: "Salario",
-earned: "Ganado",
-select_week: "Elegir semana",
-select_month: "Elegir mes",
-select_year: "Elegir año",
+    edit_workplace_title: "Editar lugar",
+    day_details_title: "Detalle del día",
+    week_details_title: "Detalle de la semana",
+    more_title: "Más",
 
+    no_role: "Sin rol",
+    add_roles_hint: "Agrega roles en Inicio → Roles.",
+    shift_date_title: "Fecha del turno",
 
+    saved_as: "Guardado como:",
+    shift_time: "Horario del turno",
+
+    deduct_unpaid_break: "Descontar descanso no pagado",
+
+    pay_tips_title: "Pago y propinas",
+
+    enter_hourly_wage: "Por favor ingresa tu pago por hora.",
+    eg_15: "ej. 15",
+
+    card_tips: "Propinas con tarjeta",
+
+    note_placeholder: "Nota opcional…",
+    preview: "Vista previa",
+
+    hourly_pay: "Pago por horas",
+
+    shift_saved: "Turno guardado ✅",
+    end_after_start: "La hora de fin debe ser después de la hora de inicio.",
+    error: "Error",
+    shift_save_failed: "No se pudo guardar el turno. Inténtalo de nuevo.",
   },
 });
 

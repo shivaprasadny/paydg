@@ -19,6 +19,8 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect, useRouter } from "expo-router";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import Screen from "../components/Screen";
 
 const STORAGE_KEY = "paydg_shifts_v1";
 
@@ -169,6 +171,8 @@ export default function EntriesScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
+
+                <ActiveShiftTimerCard />
         {/* Header */}
         <View style={styles.headerRow}>
           <Text style={styles.title}>Entries</Text>

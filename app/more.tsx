@@ -1,5 +1,7 @@
 import React from "react";
 import { SafeAreaView, Text, View } from "react-native";
+import { t } from "../src/i18n";
+import { useLang } from "../src/i18n/useLang";
 
 export default function More() {
   return (

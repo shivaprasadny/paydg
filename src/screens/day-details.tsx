@@ -3,6 +3,7 @@
 // Day Details
 // ✅ Shows Workplace + Role
 // ✅ Tap shift -> Edit Shift
+// ✅ i18n (English/Spanish) via t() + re-render via useLang()
 // ---------------------------------------------------------
 
 import React, { useCallback, useMemo, useState } from "react";
@@ -17,15 +18,19 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
+import { t } from "../i18n";
+import { useLang } from "../i18n/useLang";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import Screen from "../components/Screen";
+
 const STORAGE_KEY = "paydg_shifts_v1";
 
 type Shift = {
   id: string;
-
   isoDate: string;
 
   workplaceName?: string;
-  roleName?: string; // ✅ new
+  roleName?: string;
 
   startISO: string;
   endISO: string;
@@ -45,10 +50,17 @@ function fmtMoney(n: number) {
 
 function fmtTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+  return d.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 export default function DayDetailsScreen() {
+  // ✅ STEP 2: rerender when language changes
+  useLang();
+
   const router = useRouter();
   const params = useLocalSearchParams<{ isoDate: string; label: string }>();
 
@@ -64,7 +76,10 @@ export default function DayDetailsScreen() {
         const arr: Shift[] = raw ? JSON.parse(raw) : [];
         const filtered = arr
           .filter((s) => s.isoDate === isoDate)
-          .sort((a, b) => new Date(a.startISO).getTime() - new Date(b.startISO).getTime());
+          .sort(
+            (a, b) =>
+              new Date(a.startISO).getTime() - new Date(b.startISO).getTime()
+          );
         setShifts(filtered);
       })();
     }, [isoDate])
@@ -88,54 +103,64 @@ export default function DayDetailsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Day</Text>
+
+                <ActiveShiftTimerCard />
+        <Text style={styles.title}>{t("day_title")}</Text>
         <Text style={styles.subTitle}>{label}</Text>
 
+        {/* ---------------- Totals ---------------- */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Totals</Text>
+          <Text style={styles.cardTitle}>{t("totals_title")}</Text>
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Shifts</Text>
+            <Text style={styles.totalLabel}>{t("shifts")}</Text>
             <Text style={styles.totalValue}>{totals.count}</Text>
           </View>
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Hours</Text>
+            <Text style={styles.totalLabel}>{t("hours")}</Text>
             <Text style={styles.totalValue}>{totals.hours.toFixed(2)}h</Text>
           </View>
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Cash</Text>
+            <Text style={styles.totalLabel}>{t("cash")}</Text>
             <Text style={styles.totalValue}>{fmtMoney(totals.cash)}</Text>
           </View>
 
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Card</Text>
+            <Text style={styles.totalLabel}>{t("card")}</Text>
             <Text style={styles.totalValue}>{fmtMoney(totals.card)}</Text>
           </View>
 
           <View style={[styles.totalRow, { marginTop: 8 }]}>
-            <Text style={[styles.totalLabel, { fontWeight: "900" }]}>Total</Text>
-            <Text style={[styles.totalValue, { fontSize: 18 }]}>{fmtMoney(totals.total)}</Text>
+            <Text style={[styles.totalLabel, { fontWeight: "900" }]}>
+              {t("total")}
+            </Text>
+            <Text style={[styles.totalValue, { fontSize: 18 }]}>
+              {fmtMoney(totals.total)}
+            </Text>
           </View>
         </View>
 
+        {/* ---------------- Shifts list ---------------- */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Shifts</Text>
+          <Text style={styles.cardTitle}>{t("shifts")}</Text>
 
           {shifts.length === 0 ? (
-            <Text style={styles.helper}>No shifts for this day.</Text>
+            <Text style={styles.helper}>{t("no_shifts_for_day")}</Text>
           ) : (
             shifts.map((s) => (
               <Pressable
                 key={s.id}
-                onPress={() => router.push({ pathname: "/edit-shift", params: { id: s.id } })}
+                onPress={() =>
+                  router.push({ pathname: "/edit-shift", params: { id: s.id } })
+                }
                 style={styles.row}
               >
                 <View style={{ flex: 1 }}>
-                  {/* ✅ workplace + role */}
+                  {/* Workplace + Role */}
                   <Text style={styles.rowTop}>
-                    {s.workplaceName ?? "Workplace"}
+                    {s.workplaceName ?? t("workplace_fallback")}
                     {s.roleName ? ` • ${s.roleName}` : ""}
                   </Text>
 
@@ -149,7 +174,7 @@ export default function DayDetailsScreen() {
                 <View style={{ alignItems: "flex-end" }}>
                   <Text style={styles.earned}>{fmtMoney(s.totalEarned)}</Text>
                   <Text style={styles.rowMeta}>
-                    Tips {fmtMoney((s.cashTips || 0) + (s.creditTips || 0))}
+                    {t("tips")} {fmtMoney((s.cashTips || 0) + (s.creditTips || 0))}
                   </Text>
                 </View>
               </Pressable>
@@ -157,7 +182,7 @@ export default function DayDetailsScreen() {
           )}
         </View>
 
-        <Text style={styles.helper}>Tap any shift to edit.</Text>
+        <Text style={styles.helper}>{t("tap_shift_to_edit")}</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -182,7 +207,11 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: "800" },
   helper: { fontSize: 12, opacity: 0.6 },
 
-  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   totalLabel: { fontSize: 13, opacity: 0.7 },
   totalValue: { fontSize: 16, fontWeight: "900" },
 

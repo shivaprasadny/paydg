@@ -1,3 +1,12 @@
+// src/screens/edit-role.tsx
+// ---------------------------------------------------------
+// Edit Role
+// ✅ Edit role name
+// ✅ Optional defaults for Role (wage/break/unpaid)
+// ✅ Delete role
+// ✅ i18n (English/Spanish) via t() + re-render via useLang()
+// ---------------------------------------------------------
+
 import React, { useMemo, useState } from "react";
 import {
   Alert,
@@ -13,6 +22,11 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { deleteRole, getRoleById, updateRole } from "../storage/repositories/roleRepo";
+import { t } from "../i18n";
+import { useLang } from "../i18n/useLang";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+
+import Screen from "../components/Screen";
 
 function parseMoney(s: string) {
   const cleaned = s.replace(/[^0-9.]/g, "");
@@ -27,6 +41,9 @@ function parseIntSafe(s: string, fallback: number) {
 }
 
 export default function EditRoleScreen() {
+  // ✅ STEP 2: rerender when language changes
+  useLang();
+
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const id = params.id ?? "";
@@ -37,11 +54,11 @@ export default function EditRoleScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.container}>
-          <Text style={styles.title}>Edit Role</Text>
-          <Text style={styles.helper}>Role not found.</Text>
+          <Text style={styles.title}>{t("edit_role_title")}</Text>
+          <Text style={styles.helper}>{t("role_not_found")}</Text>
 
           <Pressable style={styles.saveBtn} onPress={() => router.back()}>
-            <Text style={styles.saveBtnText}>Go back</Text>
+            <Text style={styles.saveBtnText}>{t("go_back")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -55,7 +72,9 @@ export default function EditRoleScreen() {
       breakMinutes: String(role.defaultBreakMinutes ?? ""),
       unpaid: role.defaultUnpaidBreak ?? true,
       useDefaults:
-        role.defaultHourlyWage != null || role.defaultBreakMinutes != null || role.defaultUnpaidBreak != null,
+        role.defaultHourlyWage != null ||
+        role.defaultBreakMinutes != null ||
+        role.defaultUnpaidBreak != null,
     };
   }, [role]);
 
@@ -68,7 +87,7 @@ export default function EditRoleScreen() {
   async function onSave() {
     const nm = name.trim();
     if (!nm) {
-      Alert.alert("Name", "Please enter role name.");
+      Alert.alert(t("name_required"), t("role_name_required_msg"));
       return;
     }
 
@@ -81,7 +100,9 @@ export default function EditRoleScreen() {
     } else {
       const wage = wageText.trim() === "" ? undefined : parseMoney(wageText);
       const brk =
-        breakText.trim() === "" ? undefined : Math.min(240, Math.max(0, parseIntSafe(breakText, 30)));
+        breakText.trim() === ""
+          ? undefined
+          : Math.min(240, Math.max(0, parseIntSafe(breakText, 30)));
 
       patch.defaultHourlyWage = wage;
       patch.defaultBreakMinutes = brk;
@@ -89,83 +110,114 @@ export default function EditRoleScreen() {
     }
 
     await updateRole(id, patch);
-    Alert.alert("Saved", "Role updated ✅", [{ text: "OK", onPress: () => router.back() }]);
+    Alert.alert(t("saved"), t("role_updated"), [
+      { text: "OK", onPress: () => router.back() },
+    ]);
   }
 
   function onDelete() {
-    Alert.alert("Delete role?", "This will remove it from Roles list. Old shifts will still keep roleName saved.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          await deleteRole(id);
-          router.replace("/roles");
+    Alert.alert(
+      t("delete_role_q"),
+      t("delete_role_help"),
+      [
+        { text: t("cancel"), style: "cancel" },
+        {
+          text: t("delete"),
+          style: "destructive",
+          onPress: async () => {
+            await deleteRole(id);
+            router.replace("/roles");
+          },
         },
-      },
-    ]);
+      ]
+    );
   }
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Edit Role</Text>
 
+
+                <ActiveShiftTimerCard />
+        <Text style={styles.title}>{t("edit_role_title")}</Text>
+
+        {/* ---------------- Basics ---------------- */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Basics</Text>
+          <Text style={styles.cardTitle}>{t("basics")}</Text>
 
-          <Text style={styles.label}>Role name</Text>
-          <TextInput value={name} onChangeText={setName} style={styles.input} placeholder="e.g. Server" />
+          <Text style={styles.label}>{t("role_name")}</Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            style={styles.input}
+            placeholder={t("role_name_placeholder")}
+          />
         </View>
 
+        {/* ---------------- Defaults ---------------- */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Defaults (optional)</Text>
+          <Text style={styles.cardTitle}>{t("defaults_optional")}</Text>
 
           <View style={styles.rowBetween}>
-            <Text style={styles.label}>Use role defaults</Text>
+            <Text style={styles.label}>{t("use_role_defaults")}</Text>
             <Switch value={useDefaults} onValueChange={setUseDefaults} />
           </View>
 
-          <Text style={styles.helper}>If enabled, Add Shift will auto-fill from Role first.</Text>
+          <Text style={styles.helper}>{t("role_defaults_help")}</Text>
 
           <View style={{ height: 10 }} />
 
-          <Text style={styles.label}>Default hourly wage</Text>
+          <Text style={styles.label}>{t("default_hourly_wage")}</Text>
           <TextInput
             value={wageText}
             onChangeText={setWageText}
             editable={useDefaults}
             keyboardType="decimal-pad"
-            placeholder="Leave blank to use Workplace/Settings"
+            placeholder={t("leave_blank_fallback")}
             style={[styles.input, !useDefaults && styles.inputDisabled]}
           />
 
-          <Text style={[styles.label, { marginTop: 10 }]}>Default break minutes</Text>
+          <Text style={[styles.label, { marginTop: 10 }]}>
+            {t("default_break_minutes")}
+          </Text>
           <TextInput
             value={breakText}
             onChangeText={setBreakText}
             editable={useDefaults}
             keyboardType="number-pad"
-            placeholder="Leave blank to use Workplace/Settings"
+            placeholder={t("leave_blank_fallback")}
             style={[styles.input, !useDefaults && styles.inputDisabled]}
           />
 
           <View style={[styles.rowBetween, { marginTop: 10 }]}>
-            <Text style={styles.label}>Default: deduct unpaid break</Text>
-            <Switch value={unpaidBreak} onValueChange={setUnpaidBreak} disabled={!useDefaults} />
+            <Text style={styles.label}>{t("default_deduct_unpaid_break")}</Text>
+            <Switch
+              value={unpaidBreak}
+              onValueChange={setUnpaidBreak}
+              disabled={!useDefaults}
+            />
           </View>
         </View>
 
+        {/* ---------------- Actions ---------------- */}
         <Pressable style={styles.saveBtn} onPress={onSave}>
-          <Text style={styles.saveBtnText}>Save</Text>
+          <Text style={styles.saveBtnText}>{t("save")}</Text>
         </Pressable>
 
-        <Pressable style={[styles.saveBtn, { backgroundColor: "#b91c1c" }]} onPress={onDelete}>
-          <Text style={styles.saveBtnText}>Delete Role</Text>
+        <Pressable
+          style={[styles.saveBtn, { backgroundColor: "#b91c1c" }]}
+          onPress={onDelete}
+        >
+          <Text style={styles.saveBtnText}>{t("delete_role_btn")}</Text>
         </Pressable>
 
-        <Pressable style={[styles.saveBtn, { backgroundColor: "#e5e5e5" }]} onPress={() => router.back()}>
-          <Text style={[styles.saveBtnText, { color: "#111" }]}>Cancel</Text>
+        <Pressable
+          style={[styles.saveBtn, { backgroundColor: "#e5e5e5" }]}
+          onPress={() => router.back()}
+        >
+          <Text style={[styles.saveBtnText, { color: "#111" }]}>
+            {t("cancel")}
+          </Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -201,7 +253,11 @@ const styles = StyleSheet.create({
   },
   inputDisabled: { opacity: 0.5 },
 
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
 
   saveBtn: {
     height: 52,
