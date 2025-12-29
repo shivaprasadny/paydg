@@ -1,16 +1,10 @@
 // src/screens/monthly-summary.tsx
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect, useRouter } from "expo-router";
+
 import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
@@ -53,7 +47,8 @@ function monthLabel(d: Date) {
 
 function shiftHours(s: Shift) {
   if (typeof s.workedHours === "number") return s.workedHours;
-  if (typeof s.workedMinutes === "number") return Number((s.workedMinutes / 60).toFixed(2));
+  if (typeof s.workedMinutes === "number")
+    return Number((s.workedMinutes / 60).toFixed(2));
   return 0;
 }
 
@@ -86,12 +81,16 @@ export default function MonthlySummaryScreen() {
   const monthShifts = useMemo(() => {
     const min = mStart.getTime();
     const max = mEnd.getTime();
+
     return allShifts
       .filter((s) => {
         const t = new Date(s.startISO).getTime();
         return t >= min && t <= max;
       })
-      .sort((a, b) => new Date(b.startISO).getTime() - new Date(a.startISO).getTime());
+      .sort(
+        (a, b) =>
+          new Date(b.startISO).getTime() - new Date(a.startISO).getTime()
+      );
   }, [allShifts, mStart, mEnd]);
 
   const summary = useMemo(() => {
@@ -104,7 +103,6 @@ export default function MonthlySummaryScreen() {
 
     const avgHourly = totalHours > 0 ? totalEarned / totalHours : 0;
 
-    // Best workplace
     const byWp = new Map<string, number>();
     for (const s of monthShifts) {
       const k = s.workplaceName || "Unknown";
@@ -119,7 +117,6 @@ export default function MonthlySummaryScreen() {
       }
     }
 
-    // Best role
     const byRole = new Map<string, number>();
     for (const s of monthShifts) {
       const k = s.roleName || "No role";
@@ -134,7 +131,6 @@ export default function MonthlySummaryScreen() {
       }
     }
 
-    // Best day of week (by tips)
     const byDow = new Map<string, number>();
     for (const s of monthShifts) {
       const d = new Date(s.startISO);
@@ -168,67 +164,73 @@ export default function MonthlySummaryScreen() {
   }, [monthShifts]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <Screen pad={16}>
+      <ActiveShiftTimerCard />
 
-                <ActiveShiftTimerCard />
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Monthly Summary</Text>
-          <Pressable style={styles.pickBtn} onPress={() => setPickerOpen(true)}>
-            <Text style={styles.pickBtnText}>Pick Month</Text>
-          </Pressable>
-        </View>
-
-        <Text style={styles.subTitle}>{monthLabel(anchor)}</Text>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Totals</Text>
-
-          <Row label="Shifts" value={`${summary.count}`} />
-          <Row label="Hours" value={`${summary.totalHours.toFixed(2)}h`} />
-          <Row label="Total income" value={money(summary.totalEarned)} />
-          <Row label="Total tips" value={money(summary.totalTips)} />
-          <Row label="Cash tips" value={money(summary.cash)} />
-          <Row label="Card tips" value={money(summary.card)} />
-
-          <View style={[styles.divider, { marginTop: 10 }]} />
-
-          <Row label="Avg hourly" value={money(summary.avgHourly)} bold />
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Highlights</Text>
-
-          <Row
-            label="Best workplace"
-            value={summary.bestWp ? `${summary.bestWp} (${money(summary.bestWpVal)})` : "—"}
-          />
-          <Row
-            label="Best role"
-            value={summary.bestRole ? `${summary.bestRole} (${money(summary.bestRoleVal)})` : "—"}
-          />
-          <Row
-            label="Best tip day"
-            value={summary.bestDay ? `${summary.bestDay} (${money(summary.bestDayVal)})` : "—"}
-          />
-        </View>
-
-        <Pressable style={[styles.btn, { backgroundColor: "#111827" }]} onPress={() => router.back()}>
-          <Text style={styles.btnText}>Back</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Monthly Summary</Text>
+        <Pressable style={styles.pickBtn} onPress={() => setPickerOpen(true)}>
+          <Text style={styles.pickBtnText}>Pick Month</Text>
         </Pressable>
+      </View>
 
-        <DateTimePickerModal
-          isVisible={pickerOpen}
-          mode="date"
-          date={anchor}
-          onConfirm={(d) => {
-            setAnchor(d);
-            setPickerOpen(false);
-          }}
-          onCancel={() => setPickerOpen(false)}
+      <Text style={styles.subTitle}>{monthLabel(anchor)}</Text>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Totals</Text>
+
+        <Row label="Shifts" value={`${summary.count}`} />
+        <Row label="Hours" value={`${summary.totalHours.toFixed(2)}h`} />
+        <Row label="Total income" value={money(summary.totalEarned)} />
+        <Row label="Total tips" value={money(summary.totalTips)} />
+        <Row label="Cash tips" value={money(summary.cash)} />
+        <Row label="Card tips" value={money(summary.card)} />
+
+        <View style={[styles.divider, { marginTop: 10 }]} />
+
+        <Row label="Avg hourly" value={money(summary.avgHourly)} bold />
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Highlights</Text>
+
+        <Row
+          label="Best workplace"
+          value={
+            summary.bestWp ? `${summary.bestWp} (${money(summary.bestWpVal)})` : "—"
+          }
         />
-      </ScrollView>
-    </SafeAreaView>
+        <Row
+          label="Best role"
+          value={
+            summary.bestRole
+              ? `${summary.bestRole} (${money(summary.bestRoleVal)})`
+              : "—"
+          }
+        />
+        <Row
+          label="Best tip day"
+          value={
+            summary.bestDay ? `${summary.bestDay} (${money(summary.bestDayVal)})` : "—"
+          }
+        />
+      </View>
+
+      <Pressable style={styles.btn} onPress={() => router.back()}>
+        <Text style={styles.btnText}>Back</Text>
+      </Pressable>
+
+      <DateTimePickerModal
+        isVisible={pickerOpen}
+        mode="date"
+        date={anchor}
+        onConfirm={(d) => {
+          setAnchor(d);
+          setPickerOpen(false);
+        }}
+        onCancel={() => setPickerOpen(false)}
+      />
+    </Screen>
   );
 }
 
@@ -242,9 +244,6 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0B0F1A" },
-  container: { padding: 16, paddingBottom: 30, gap: 12 },
-
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { color: "white", fontSize: 28, fontWeight: "900" },
   subTitle: { color: "#B8C0CC", marginTop: -6 },
@@ -264,6 +263,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     gap: 10,
+    marginTop: 12,
   },
   cardTitle: { color: "white", fontSize: 16, fontWeight: "900" },
 
@@ -278,8 +278,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111",
-    marginTop: 4,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    marginTop: 12,
   },
   btnText: { color: "white", fontWeight: "900", fontSize: 16 },
 });

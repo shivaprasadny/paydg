@@ -2,20 +2,13 @@
 // ---------------------------------------------------------
 // PayDG — Entries (Phase 2)
 // ✅ Weekly view (Mon–Sun) grouped by DAY
-// ✅ Date picker to jump to any week (no endless buttons)
+// ✅ Date picker to jump to any week
 // ✅ Daily totals per day
 // ✅ Tap a day -> Day Details
 // ---------------------------------------------------------
 
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -50,7 +43,7 @@ function startOfWeekMonday(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   const day = x.getDay(); // 0 Sun..6 Sat
-  const diff = (day === 0 ? -6 : 1) - day;
+  const diff = (day === 0 ? -6 : 1) - day; // Monday start
   x.setDate(x.getDate() + diff);
   return x;
 }
@@ -64,7 +57,6 @@ function endOfWeekSunday(d: Date) {
 }
 
 function toISODateLocal(d: Date) {
-  // local YYYY-MM-DD
   const x = new Date(d);
   const yyyy = x.getFullYear();
   const mm = String(x.getMonth() + 1).padStart(2, "0");
@@ -137,7 +129,6 @@ export default function EntriesScreen() {
   const weekEnd = useMemo(() => endOfWeekSunday(anchorDate), [anchorDate]);
   const weekLabel = useMemo(() => fmtRange(weekStart, weekEnd), [weekStart, weekEnd]);
 
-  // shifts in selected week
   const weekShifts = useMemo(() => {
     const min = weekStart.getTime();
     const max = weekEnd.getTime();
@@ -149,7 +140,6 @@ export default function EntriesScreen() {
       .sort((a, b) => new Date(a.startISO).getTime() - new Date(b.startISO).getTime());
   }, [allShifts, weekStart, weekEnd]);
 
-  // group into 7 days
   const days = useMemo(() => {
     const list: { date: Date; iso: string; shifts: Shift[] }[] = [];
     for (let i = 0; i < 7; i++) {
@@ -160,7 +150,7 @@ export default function EntriesScreen() {
     }
 
     for (const s of weekShifts) {
-      const iso = s.isoDate; // already stored as YYYY-MM-DD
+      const iso = s.isoDate;
       const bucket = list.find((x) => x.iso === iso);
       if (bucket) bucket.shifts.push(s);
     }
@@ -169,123 +159,118 @@ export default function EntriesScreen() {
   }, [weekStart, weekShifts]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <Screen pad={16}>
+      <ActiveShiftTimerCard />
 
-                <ActiveShiftTimerCard />
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Entries</Text>
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Entries</Text>
 
-          <Pressable style={styles.pickBtn} onPress={() => setPickerOpen(true)}>
-            <Text style={styles.pickBtnText}>Pick Week</Text>
-          </Pressable>
-        </View>
+        <Pressable style={styles.pickBtn} onPress={() => setPickerOpen(true)}>
+          <Text style={styles.pickBtnText}>Pick Week</Text>
+        </Pressable>
+      </View>
 
-        <Text style={styles.subTitle}>{weekLabel}</Text>
+      <Text style={styles.subTitle}>{weekLabel}</Text>
 
-        {/* Days */}
-        {days.map((d) => {
-          const totals = dayTotals(d.shifts);
+      {/* Days */}
+      {days.map((d) => {
+        const totals = dayTotals(d.shifts);
 
-          return (
-            <Pressable
-              key={d.iso}
-              onPress={() =>
-                router.push({
-                  pathname: "/day-details",
-                  params: { isoDate: d.iso, label: fmtDayHeader(d.date) },
-                })
-              }
-              style={styles.dayCard}
-            >
-              <View style={styles.dayTopRow}>
-                <Text style={styles.dayTitle}>{fmtDayHeader(d.date)}</Text>
-                <Text style={styles.dayCount}>{totals.count} shifts</Text>
-              </View>
+        return (
+          <Pressable
+            key={d.iso}
+            onPress={() =>
+              router.push({
+                pathname: "/day-details",
+                params: { isoDate: d.iso, label: fmtDayHeader(d.date) },
+              })
+            }
+            style={styles.dayCard}
+          >
+            <View style={styles.dayTopRow}>
+              <Text style={styles.dayTitle}>{fmtDayHeader(d.date)}</Text>
+              <Text style={styles.dayCount}>{totals.count} shifts</Text>
+            </View>
 
-              {totals.count === 0 ? (
-                <Text style={styles.helper}>No shifts</Text>
-              ) : (
-                <View style={{ gap: 6 }}>
-                  <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Hours</Text>
-                    <Text style={styles.totalValue}>{totals.hours.toFixed(2)}h</Text>
-                  </View>
-
-                  <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Cash</Text>
-                    <Text style={styles.totalValue}>{fmtMoney(totals.cash)}</Text>
-                  </View>
-
-                  <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Card</Text>
-                    <Text style={styles.totalValue}>{fmtMoney(totals.card)}</Text>
-                  </View>
-
-                  <View style={[styles.totalRow, { marginTop: 4 }]}>
-                    <Text style={[styles.totalLabel, { fontWeight: "900" }]}>Total</Text>
-                    <Text style={[styles.totalValue, { fontSize: 18 }]}>{fmtMoney(totals.total)}</Text>
-                  </View>
-
-                  <Text style={styles.tapHint}>Tap to view shifts →</Text>
+            {totals.count === 0 ? (
+              <Text style={styles.helper}>No shifts</Text>
+            ) : (
+              <View style={{ gap: 6 }}>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Hours</Text>
+                  <Text style={styles.totalValue}>{totals.hours.toFixed(2)}h</Text>
                 </View>
-              )}
-            </Pressable>
-          );
-        })}
 
-        {/* Picker */}
-        <DateTimePickerModal
-          isVisible={pickerOpen}
-          mode="date"
-          date={anchorDate}
-          onConfirm={(d) => {
-            setAnchorDate(d);
-            setPickerOpen(false);
-          }}
-          onCancel={() => setPickerOpen(false)}
-        />
-      </ScrollView>
-    </SafeAreaView>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Cash</Text>
+                  <Text style={styles.totalValue}>{fmtMoney(totals.cash)}</Text>
+                </View>
+
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Card</Text>
+                  <Text style={styles.totalValue}>{fmtMoney(totals.card)}</Text>
+                </View>
+
+                <View style={[styles.totalRow, { marginTop: 4 }]}>
+                  <Text style={[styles.totalLabel, { fontWeight: "900" }]}>Total</Text>
+                  <Text style={[styles.totalValue, { fontSize: 18 }]}>{fmtMoney(totals.total)}</Text>
+                </View>
+
+                <Text style={styles.tapHint}>Tap to view shifts →</Text>
+              </View>
+            )}
+          </Pressable>
+        );
+      })}
+
+      {/* Picker */}
+      <DateTimePickerModal
+        isVisible={pickerOpen}
+        mode="date"
+        date={anchorDate}
+        onConfirm={(d) => {
+          setAnchorDate(d);
+          setPickerOpen(false);
+        }}
+        onCancel={() => setPickerOpen(false)}
+      />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f7f7f7" },
-  container: { padding: 16, paddingBottom: 30, gap: 10 },
-
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { fontSize: 28, fontWeight: "800" },
-  subTitle: { opacity: 0.7, marginTop: -2, marginBottom: 6 },
+  title: { color: "white", fontSize: 28, fontWeight: "900" },
+  subTitle: { color: "#B8C0CC", marginTop: -2, marginBottom: 6, opacity: 0.85 },
 
   pickBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: "#111",
+    backgroundColor: "#2563EB",
   },
   pickBtnText: { color: "#fff", fontWeight: "900" },
 
   dayCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "#111827",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: "#1F2937",
     gap: 10,
-    marginTop: 6,
+    marginTop: 10,
   },
 
   dayTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  dayTitle: { fontSize: 15, fontWeight: "900" },
-  dayCount: { fontSize: 12, opacity: 0.6 },
+  dayTitle: { color: "white", fontSize: 15, fontWeight: "900" },
+  dayCount: { color: "#B8C0CC", fontSize: 12, opacity: 0.7 },
 
-  helper: { fontSize: 12, opacity: 0.6 },
+  helper: { color: "#B8C0CC", fontSize: 12, opacity: 0.7 },
 
   totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  totalLabel: { fontSize: 13, opacity: 0.7 },
-  totalValue: { fontSize: 16, fontWeight: "900" },
+  totalLabel: { color: "#B8C0CC", fontSize: 13, opacity: 0.85 },
+  totalValue: { color: "white", fontSize: 16, fontWeight: "900" },
 
-  tapHint: { fontSize: 12, opacity: 0.6, marginTop: 6 },
+  tapHint: { color: "#B8C0CC", fontSize: 12, opacity: 0.7, marginTop: 6 },
 });

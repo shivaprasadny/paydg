@@ -1,29 +1,21 @@
 // app/profile.tsx
-// ---------------------------------------------------------
-// PayDg — Profile (Onboarding)
-// ✅ Creates profile once
-// ✅ Saves Profile object via upsertProfile/saveProfile
-// ---------------------------------------------------------
-
 import React, { useMemo, useState } from "react";
-import {
-  Alert,
-  SafeAreaView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useRouter } from "expo-router";
+
+import Screen from "../src/components/Screen";
+import ActiveShiftTimerCard from "../src/components/ActiveShiftTimerCard";
 
 import { getProfile, upsertProfile } from "../src/storage/repositories/profileRepo";
 import { t } from "../src/i18n";
 import { useLang } from "../src/i18n/useLang";
 
-
 export default function ProfileScreen() {
   const router = useRouter();
   const existing = getProfile();
+
+  // ✅ rerender when language changes
+  useLang();
 
   const [name, setName] = useState(existing?.userName ?? "");
 
@@ -32,59 +24,74 @@ export default function ProfileScreen() {
   const onSave = async () => {
     const trimmed = name.trim();
     if (trimmed.length < 2) {
-      Alert.alert("Name required", "Please enter at least 2 characters.");
+      Alert.alert(t("name_required") ?? "Name required", t("name_required_msg") ?? "Please enter at least 2 characters.");
       return;
     }
 
-    // ✅ Build the full Profile object
-    // Keep existing defaults if they already exist
     const nextProfile = {
       userName: trimmed,
-
       defaultHourlyWage: existing?.defaultHourlyWage ?? 0,
       defaultBreakMinutes: existing?.defaultBreakMinutes ?? 30,
       defaultUnpaidBreak: existing?.defaultUnpaidBreak ?? true,
     };
 
-    // ✅ IMPORTANT: upsertProfile expects a Profile object (not string)
     await upsertProfile(nextProfile as any);
 
-    Alert.alert("Saved", "Profile created ✅", [
+    Alert.alert(t("saved") ?? "Saved", t("profile_created") ?? "Profile created ✅", [
       { text: "OK", onPress: () => router.replace("/") },
     ]);
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0B0F1A" }}>
-      <View style={{ flex: 1, padding: 20, justifyContent: "center" }}>
-        <Text style={{ fontSize: 28, fontWeight: "800", color: "white", marginBottom: 10 }}>
-          Create Profile
+    <Screen pad={20} safeTop>
+      <ActiveShiftTimerCard />
+
+      <View style={{ gap: 12, paddingTop: 10 }}>
+        <Text style={{ fontSize: 28, fontWeight: "900", color: "white" }}>
+          {t("profile_create_title") ?? "Create Profile"}
         </Text>
 
-        <Text style={{ fontSize: 14, color: "#B8C0CC", marginBottom: 18 }}>
-          This name will show on the Home screen.
+        <Text style={{ fontSize: 14, color: "#B8C0CC" }}>
+          {t("profile_create_sub") ?? "This name will show on the Home screen."}
         </Text>
 
-        <Text style={{ color: "#B8C0CC", marginBottom: 8 }}>Your name</Text>
-
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g., Shiva"
-          placeholderTextColor="#6B7280"
-          autoCapitalize="words"
-          autoCorrect={false}
+        <View
           style={{
             backgroundColor: "#111827",
-            color: "white",
-            padding: 14,
-            borderRadius: 12,
             borderWidth: 1,
             borderColor: "#1F2937",
-            marginBottom: 16,
-            fontSize: 16,
+            borderRadius: 16,
+            padding: 14,
+            marginTop: 6,
+            gap: 8,
           }}
-        />
+        >
+          <Text style={{ color: "#B8C0CC", fontSize: 13 }}>
+            {t("your_name") ?? "Your name"}
+          </Text>
+
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder={t("name_placeholder") ?? "e.g., Shiva"}
+            placeholderTextColor="#6B7280"
+            autoCapitalize="words"
+            autoCorrect={false}
+            style={{
+              backgroundColor: "#0B0F1A",
+              color: "white",
+              padding: 14,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: "#1F2937",
+              fontSize: 16,
+            }}
+          />
+
+          <Text style={{ color: "#6B7280", fontSize: 12, lineHeight: 16 }}>
+            {t("profile_tip") ?? "Tip: Use the name your coworkers call you 😄"}
+          </Text>
+        </View>
 
         <TouchableOpacity
           onPress={onSave}
@@ -93,32 +100,32 @@ export default function ProfileScreen() {
             opacity: canSave ? 1 : 0.5,
             backgroundColor: "#2563EB",
             padding: 14,
-            borderRadius: 12,
+            borderRadius: 14,
             alignItems: "center",
+            marginTop: 6,
           }}
         >
-          <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>
-            Save
+          <Text style={{ color: "white", fontSize: 16, fontWeight: "900" }}>
+            {t("save") ?? "Save"}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => router.back()}
           style={{
-            marginTop: 10,
             backgroundColor: "#111827",
             padding: 14,
-            borderRadius: 12,
+            borderRadius: 14,
             alignItems: "center",
             borderWidth: 1,
             borderColor: "#1F2937",
           }}
         >
-          <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>
-            Cancel
+          <Text style={{ color: "white", fontSize: 16, fontWeight: "800" }}>
+            {t("cancel") ?? "Cancel"}
           </Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }

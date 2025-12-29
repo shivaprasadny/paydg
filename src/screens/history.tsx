@@ -8,15 +8,7 @@
 // ---------------------------------------------------------
 
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { t } from "../i18n";
@@ -101,7 +93,10 @@ export default function HistoryScreen() {
 
   const totals = useMemo(() => {
     const now = new Date();
-    const todayKey = now.toISOString().slice(0, 10); // ok for quick totals
+
+    // for quick totals only (ok)
+    const todayKey = now.toISOString().slice(0, 10);
+
     const weekStart = startOfWeek(now).getTime();
     const monthStart = startOfMonth(now).getTime();
 
@@ -138,135 +133,132 @@ export default function HistoryScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-
+    <Screen pad={16}>
       <ActiveShiftTimerCard />
 
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>{t("history_title")}</Text>
 
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>{t("history_title")}</Text>
-          <Pressable onPress={load} style={styles.refreshBtn}>
-            <Text style={styles.refreshText}>{t("refresh")}</Text>
-          </Pressable>
+        <Pressable onPress={load} style={styles.refreshBtn}>
+          <Text style={styles.refreshText}>{t("refresh")}</Text>
+        </Pressable>
+      </View>
+
+      {/* Totals */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t("totals")}</Text>
+
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>{t("today")}</Text>
+          <Text style={styles.totalValue}>{fmtMoney(totals.today)}</Text>
         </View>
 
-        {/* Totals */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t("totals")}</Text>
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t("today")}</Text>
-            <Text style={styles.totalValue}>{fmtMoney(totals.today)}</Text>
-          </View>
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t("this_week")}</Text>
-            <Text style={styles.totalValue}>{fmtMoney(totals.week)}</Text>
-          </View>
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t("this_month")}</Text>
-            <Text style={styles.totalValue}>{fmtMoney(totals.month)}</Text>
-          </View>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>{t("this_week")}</Text>
+          <Text style={styles.totalValue}>{fmtMoney(totals.week)}</Text>
         </View>
 
-        {/* Shifts */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t("shifts")}</Text>
-
-          {loading ? (
-            <Text style={styles.helper}>{t("loading")}</Text>
-          ) : shifts.length === 0 ? (
-            <Text style={styles.helper}>{t("no_shifts")}</Text>
-          ) : (
-            shifts.map((s) => (
-              <Pressable
-                key={s.id}
-                onPress={() => router.push({ pathname: "/edit-shift", params: { id: s.id } })}
-                onLongPress={() => deleteShift(s.id)}
-                style={styles.shiftRow}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.shiftDate}>
-  {s.isoDate} • {s.workplaceName ?? t("workplace")}
-  {s.roleName ? ` • ${s.roleName}` : ""}
-</Text>
-
-
-                  <Text style={styles.shiftMeta}>
-                    {fmtTime(s.startISO)} – {fmtTime(s.endISO)} • {s.workedHours}h
-                  </Text>
-
-                 <Text style={styles.shiftMeta}>
-  {t("tips_label")}: {fmtMoney(s.totalTips)} • {t("wage_label")}: {fmtMoney(s.hourlyPay)}
-</Text>
-
-
-                  {!!s.note && <Text style={styles.note}>📝 {s.note}</Text>}
-                </View>
-
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={styles.earned}>{fmtMoney(s.totalEarned)}</Text>
-                  <Text style={styles.deleteHint}>{t("hold_to_delete")}</Text>
-                </View>
-              </Pressable>
-            ))
-          )}
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>{t("this_month")}</Text>
+          <Text style={styles.totalValue}>{fmtMoney(totals.month)}</Text>
         </View>
+      </View>
 
-        <Text style={styles.footer}>{t("history_footer_hint")}</Text>
-      </ScrollView>
-    </SafeAreaView>
+      {/* Shifts */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t("shifts")}</Text>
+
+        {loading ? (
+          <Text style={styles.helper}>{t("loading")}</Text>
+        ) : shifts.length === 0 ? (
+          <Text style={styles.helper}>{t("no_shifts")}</Text>
+        ) : (
+          shifts.map((s) => (
+            <Pressable
+              key={s.id}
+              onPress={() => router.push({ pathname: "/edit-shift", params: { id: s.id } })}
+              onLongPress={() => deleteShift(s.id)}
+              style={styles.shiftRow}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shiftDate}>
+                  {s.isoDate} • {s.workplaceName ?? t("workplace")}
+                  {s.roleName ? ` • ${s.roleName}` : ""}
+                </Text>
+
+                <Text style={styles.shiftMeta}>
+                  {fmtTime(s.startISO)} – {fmtTime(s.endISO)} • {s.workedHours}h
+                </Text>
+
+                <Text style={styles.shiftMeta}>
+                  {t("tips_label")}: {fmtMoney(s.totalTips)} • {t("wage_label")}:{" "}
+                  {fmtMoney(s.hourlyPay)}
+                </Text>
+
+                {!!s.note && <Text style={styles.note}>📝 {s.note}</Text>}
+              </View>
+
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.earned}>{fmtMoney(s.totalEarned)}</Text>
+                <Text style={styles.deleteHint}>{t("hold_to_delete")}</Text>
+              </View>
+            </Pressable>
+          ))
+        )}
+      </View>
+
+      <Text style={styles.footer}>{t("history_footer_hint")}</Text>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f7f7f7" },
-  container: { padding: 16, paddingBottom: 30, gap: 12 },
-
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { fontSize: 28, fontWeight: "800" },
+  title: { color: "white", fontSize: 28, fontWeight: "900" },
 
   refreshBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: "#111",
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
   },
-  refreshText: { color: "#fff", fontWeight: "800" },
+  refreshText: { color: "#fff", fontWeight: "900" },
 
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: "#111827",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: "#1F2937",
     gap: 10,
+    marginTop: 12,
   },
-  cardTitle: { fontSize: 16, fontWeight: "700" },
+  cardTitle: { color: "white", fontSize: 16, fontWeight: "900" },
 
   totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  totalLabel: { fontSize: 14, opacity: 0.7 },
-  totalValue: { fontSize: 16, fontWeight: "900" },
+  totalLabel: { color: "#B8C0CC", fontSize: 13 },
+  totalValue: { color: "white", fontSize: 16, fontWeight: "900" },
 
-  helper: { fontSize: 13, opacity: 0.6 },
+  helper: { color: "#B8C0CC", opacity: 0.7 },
 
   shiftRow: {
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#1F2937",
     borderRadius: 14,
     padding: 12,
     flexDirection: "row",
     gap: 12,
-    backgroundColor: "#fff",
+    backgroundColor: "#0B0F1A",
   },
-  shiftDate: { fontSize: 15, fontWeight: "800" },
-  shiftMeta: { fontSize: 13, opacity: 0.7, marginTop: 2 },
-  earned: { fontSize: 16, fontWeight: "900" },
-  deleteHint: { fontSize: 11, opacity: 0.5, marginTop: 4 },
+  shiftDate: { color: "white", fontSize: 15, fontWeight: "900" },
+  shiftMeta: { color: "#B8C0CC", fontSize: 13, opacity: 0.85, marginTop: 2 },
 
-  note: { marginTop: 6, fontSize: 12, opacity: 0.8 },
+  earned: { color: "white", fontSize: 16, fontWeight: "900" },
+  deleteHint: { color: "#B8C0CC", fontSize: 11, opacity: 0.6, marginTop: 4 },
 
-  footer: { textAlign: "center", opacity: 0.6, marginTop: 6 },
+  note: { marginTop: 6, fontSize: 12, color: "#B8C0CC", opacity: 0.95 },
+
+  footer: { textAlign: "center", color: "#B8C0CC", opacity: 0.6, marginTop: 12, fontSize: 12 },
 });

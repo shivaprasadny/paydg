@@ -1,6 +1,16 @@
 import React from "react";
 import { View, ScrollView, StyleProp, ViewStyle } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets, Edge } from "react-native-safe-area-context";
+
+type Props = {
+  children: React.ReactNode;
+  scroll?: boolean;
+  bg?: string;
+  safeTop?: boolean;          // true = respect notch/top safe area
+  pad?: number;               // base padding for screen
+  style?: StyleProp<ViewStyle>;
+  contentContainerStyle?: StyleProp<ViewStyle>;
+};
 
 export default function Screen({
   children,
@@ -9,38 +19,35 @@ export default function Screen({
   safeTop = false,
   contentContainerStyle,
   style,
-  pad = 0, // ✅ add default padding control
-}: {
-  children: React.ReactNode;
-  scroll?: boolean;
-  bg?: string;
-  safeTop?: boolean;
-  pad?: number;
-  style?: StyleProp<ViewStyle>;
-  contentContainerStyle?: StyleProp<ViewStyle>;
-}) {
+  pad = 0,
+}: Props) {
   const insets = useSafeAreaInsets();
 
+  // ✅ If safeTop is OFF, do NOT use full insets.top (too big).
+  // Just a small visual breathing room.
+  const topPad = safeTop ? 0 : 12;
+
+  const edges: Edge[] = safeTop
+    ? ["top", "left", "right", "bottom"]
+    : ["left", "right", "bottom"];
+
+  const baseContentStyle: ViewStyle = {
+    padding: pad,
+    paddingTop: pad + topPad,
+    paddingBottom: (insets.bottom || 0) + 12,
+  };
+
   return (
-    <SafeAreaView
-      style={[{ flex: 1, backgroundColor: bg }, style]}
-      edges={safeTop ? ["top", "left", "right", "bottom"] : ["left", "right", "bottom"]}
-    >
+    <SafeAreaView style={[{ flex: 1, backgroundColor: bg }, style]} edges={edges}>
       {scroll ? (
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[
-            {
-              padding: pad,
-              paddingBottom: (insets.bottom || 0) + 10, // ✅ Android cut fix
-            },
-            contentContainerStyle,
-          ]}
+          contentContainerStyle={[baseContentStyle, contentContainerStyle]}
         >
           {children}
         </ScrollView>
       ) : (
-        <View style={{ flex: 1, padding: pad, paddingBottom: (insets.bottom || 0) + 16 }}>
+        <View style={[{ flex: 1 }, baseContentStyle, contentContainerStyle]}>
           {children}
         </View>
       )}

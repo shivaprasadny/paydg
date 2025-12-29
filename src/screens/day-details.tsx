@@ -4,24 +4,18 @@
 // ✅ Shows Workplace + Role
 // ✅ Tap shift -> Edit Shift
 // ✅ i18n (English/Spanish) via t() + re-render via useLang()
+// ✅ Uses AppScreen (your reusable Screen component)
 // ---------------------------------------------------------
 
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
 import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
-import Screen from "../components/Screen";
+import AppScreen from "../components/Screen";
 
 const STORAGE_KEY = "paydg_shifts_v1";
 
@@ -50,15 +44,10 @@ function fmtMoney(n: number) {
 
 function fmtTime(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
 export default function DayDetailsScreen() {
-  // ✅ STEP 2: rerender when language changes
   useLang();
 
   const router = useRouter();
@@ -74,12 +63,11 @@ export default function DayDetailsScreen() {
       (async () => {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         const arr: Shift[] = raw ? JSON.parse(raw) : [];
+
         const filtered = arr
           .filter((s) => s.isoDate === isoDate)
-          .sort(
-            (a, b) =>
-              new Date(a.startISO).getTime() - new Date(b.startISO).getTime()
-          );
+          .sort((a, b) => new Date(a.startISO).getTime() - new Date(b.startISO).getTime());
+
         setShifts(filtered);
       })();
     }, [isoDate])
@@ -101,131 +89,131 @@ export default function DayDetailsScreen() {
   }, [shifts]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <AppScreen bg="#0B0F1A" pad={16} contentContainerStyle={{ gap: 12 }}>
+      <ActiveShiftTimerCard />
 
-                <ActiveShiftTimerCard />
-        <Text style={styles.title}>{t("day_title")}</Text>
-        <Text style={styles.subTitle}>{label}</Text>
-
-        {/* ---------------- Totals ---------------- */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t("totals_title")}</Text>
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t("shifts")}</Text>
-            <Text style={styles.totalValue}>{totals.count}</Text>
-          </View>
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t("hours")}</Text>
-            <Text style={styles.totalValue}>{totals.hours.toFixed(2)}h</Text>
-          </View>
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t("cash")}</Text>
-            <Text style={styles.totalValue}>{fmtMoney(totals.cash)}</Text>
-          </View>
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t("card")}</Text>
-            <Text style={styles.totalValue}>{fmtMoney(totals.card)}</Text>
-          </View>
-
-          <View style={[styles.totalRow, { marginTop: 8 }]}>
-            <Text style={[styles.totalLabel, { fontWeight: "900" }]}>
-              {t("total")}
-            </Text>
-            <Text style={[styles.totalValue, { fontSize: 18 }]}>
-              {fmtMoney(totals.total)}
-            </Text>
-          </View>
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{t("day_title")}</Text>
+          <Text style={styles.subTitle}>{label}</Text>
         </View>
 
-        {/* ---------------- Shifts list ---------------- */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t("shifts")}</Text>
+        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backText}>Back</Text>
+        </Pressable>
+      </View>
 
-          {shifts.length === 0 ? (
-            <Text style={styles.helper}>{t("no_shifts_for_day")}</Text>
-          ) : (
-            shifts.map((s) => (
-              <Pressable
-                key={s.id}
-                onPress={() =>
-                  router.push({ pathname: "/edit-shift", params: { id: s.id } })
-                }
-                style={styles.row}
-              >
-                <View style={{ flex: 1 }}>
-                  {/* Workplace + Role */}
-                  <Text style={styles.rowTop}>
-                    {s.workplaceName ?? t("workplace_fallback")}
-                    {s.roleName ? ` • ${s.roleName}` : ""}
-                  </Text>
+      {/* Totals */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t("totals_title")}</Text>
 
-                  <Text style={styles.rowMeta}>
-                    {fmtTime(s.startISO)} – {fmtTime(s.endISO)} • {s.workedHours}h
-                  </Text>
+        <Row label={t("shifts")} value={`${totals.count}`} />
+        <Row label={t("hours")} value={`${totals.hours.toFixed(2)}h`} />
+        <Row label={t("cash")} value={fmtMoney(totals.cash)} />
+        <Row label={t("card")} value={fmtMoney(totals.card)} />
 
-                  {!!s.note && <Text style={styles.note}>📝 {s.note}</Text>}
-                </View>
+        <View style={styles.divider} />
 
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={styles.earned}>{fmtMoney(s.totalEarned)}</Text>
-                  <Text style={styles.rowMeta}>
-                    {t("tips")} {fmtMoney((s.cashTips || 0) + (s.creditTips || 0))}
-                  </Text>
-                </View>
-              </Pressable>
-            ))
-          )}
-        </View>
+        <Row label={t("total")} value={fmtMoney(totals.total)} bold />
+      </View>
 
-        <Text style={styles.helper}>{t("tap_shift_to_edit")}</Text>
-      </ScrollView>
-    </SafeAreaView>
+      {/* Shifts list */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t("shifts")}</Text>
+
+        {shifts.length === 0 ? (
+          <Text style={styles.helper}>{t("no_shifts_for_day")}</Text>
+        ) : (
+          shifts.map((s) => (
+            <Pressable
+              key={s.id}
+              onPress={() => router.push({ pathname: "/edit-shift", params: { id: s.id } })}
+              style={styles.row}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTop}>
+                  {s.workplaceName ?? t("workplace_fallback")}
+                  {s.roleName ? ` • ${s.roleName}` : ""}
+                </Text>
+
+                <Text style={styles.rowMeta}>
+                  {fmtTime(s.startISO)} – {fmtTime(s.endISO)} • {s.workedHours}h
+                </Text>
+
+                {!!s.note && <Text style={styles.note}>📝 {s.note}</Text>}
+              </View>
+
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.earned}>{fmtMoney(s.totalEarned)}</Text>
+                <Text style={styles.rowMeta}>
+                  {t("tips")} {fmtMoney((s.cashTips || 0) + (s.creditTips || 0))}
+                </Text>
+              </View>
+            </Pressable>
+          ))
+        )}
+      </View>
+
+      <Text style={styles.helper}>{t("tap_shift_to_edit")}</Text>
+    </AppScreen>
+  );
+}
+
+function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <View style={styles.totalRow}>
+      <Text style={[styles.totalLabel, bold && { fontWeight: "900", color: "white" }]}>{label}</Text>
+      <Text style={[styles.totalValue, bold && { fontSize: 18 }]}>{value}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f7f7f7" },
-  container: { padding: 16, paddingBottom: 30, gap: 10 },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
 
-  title: { fontSize: 28, fontWeight: "900" },
-  subTitle: { opacity: 0.7, marginTop: -6 },
+  title: { color: "white", fontSize: 28, fontWeight: "900" },
+  subTitle: { color: "#B8C0CC", marginTop: -6 },
+
+  backBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1F2937",
+  },
+  backText: { color: "white", fontWeight: "900" },
 
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: "#111827",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: "#1F2937",
     gap: 10,
-    marginTop: 10,
   },
-  cardTitle: { fontSize: 16, fontWeight: "800" },
-  helper: { fontSize: 12, opacity: 0.6 },
+  cardTitle: { color: "white", fontSize: 16, fontWeight: "900" },
 
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  totalLabel: { fontSize: 13, opacity: 0.7 },
-  totalValue: { fontSize: 16, fontWeight: "900" },
+  helper: { color: "#9CA3AF", fontSize: 12, lineHeight: 16 },
+
+  divider: { height: 1, backgroundColor: "#1F2937", marginTop: 6 },
+
+  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  totalLabel: { color: "#B8C0CC", fontSize: 13 },
+  totalValue: { color: "white", fontSize: 16, fontWeight: "900" },
 
   row: {
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#1F2937",
     borderRadius: 14,
     padding: 12,
     flexDirection: "row",
     gap: 12,
-    backgroundColor: "#fff",
+    backgroundColor: "#0B0F1A",
   },
-  rowTop: { fontWeight: "900" },
-  rowMeta: { fontSize: 12, opacity: 0.7, marginTop: 2 },
-  earned: { fontSize: 16, fontWeight: "900" },
-  note: { marginTop: 6, fontSize: 12, opacity: 0.8 },
+  rowTop: { color: "white", fontWeight: "900" },
+  rowMeta: { color: "#9CA3AF", fontSize: 12, marginTop: 2 },
+  earned: { color: "white", fontSize: 16, fontWeight: "900" },
+  note: { marginTop: 6, fontSize: 12, color: "#B8C0CC" },
 });

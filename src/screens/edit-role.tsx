@@ -5,28 +5,18 @@
 // ✅ Optional defaults for Role (wage/break/unpaid)
 // ✅ Delete role
 // ✅ i18n (English/Spanish) via t() + re-render via useLang()
+// ✅ Uses reusable AppScreen (no SafeAreaView/ScrollView here)
 // ---------------------------------------------------------
 
 import React, { useMemo, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { deleteRole, getRoleById, updateRole } from "../storage/repositories/roleRepo";
 import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
 import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
-
-import Screen from "../components/Screen";
+import AppScreen from "../components/Screen";
 
 function parseMoney(s: string) {
   const cleaned = s.replace(/[^0-9.]/g, "");
@@ -41,7 +31,7 @@ function parseIntSafe(s: string, fallback: number) {
 }
 
 export default function EditRoleScreen() {
-  // ✅ STEP 2: rerender when language changes
+  // ✅ rerender when language changes
   useLang();
 
   const router = useRouter();
@@ -50,18 +40,19 @@ export default function EditRoleScreen() {
 
   const role = getRoleById(id);
 
+  // Not found
   if (!role) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.container}>
-          <Text style={styles.title}>{t("edit_role_title")}</Text>
-          <Text style={styles.helper}>{t("role_not_found")}</Text>
+      <AppScreen bg="#0B0F1A" pad={16} contentContainerStyle={{ gap: 12 }}>
+        <ActiveShiftTimerCard />
 
-          <Pressable style={styles.saveBtn} onPress={() => router.back()}>
-            <Text style={styles.saveBtnText}>{t("go_back")}</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+        <Text style={styles.titleDark}>{t("edit_role_title")}</Text>
+        <Text style={styles.helperDark}>{t("role_not_found")}</Text>
+
+        <Pressable style={[styles.btn, styles.btnBlue]} onPress={() => router.back()}>
+          <Text style={styles.btnText}>{t("go_back")}</Text>
+        </Pressable>
+      </AppScreen>
     );
   }
 
@@ -110,146 +101,128 @@ export default function EditRoleScreen() {
     }
 
     await updateRole(id, patch);
-    Alert.alert(t("saved"), t("role_updated"), [
-      { text: "OK", onPress: () => router.back() },
-    ]);
+    Alert.alert(t("saved"), t("role_updated"), [{ text: "OK", onPress: () => router.back() }]);
   }
 
   function onDelete() {
-    Alert.alert(
-      t("delete_role_q"),
-      t("delete_role_help"),
-      [
-        { text: t("cancel"), style: "cancel" },
-        {
-          text: t("delete"),
-          style: "destructive",
-          onPress: async () => {
-            await deleteRole(id);
-            router.replace("/roles");
-          },
+    Alert.alert(t("delete_role_q"), t("delete_role_help"), [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("delete"),
+        style: "destructive",
+        onPress: async () => {
+          await deleteRole(id);
+          router.replace("/roles");
         },
-      ]
-    );
+      },
+    ]);
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <AppScreen bg="#0B0F1A" pad={16} contentContainerStyle={{ gap: 12 }}>
+      <ActiveShiftTimerCard />
 
+      <Text style={styles.titleDark}>{t("edit_role_title")}</Text>
 
-                <ActiveShiftTimerCard />
-        <Text style={styles.title}>{t("edit_role_title")}</Text>
+      {/* ---------------- Basics ---------------- */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t("basics")}</Text>
 
-        {/* ---------------- Basics ---------------- */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t("basics")}</Text>
+        <Text style={styles.label}>{t("role_name")}</Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          style={styles.input}
+          placeholder={t("role_name_placeholder")}
+          placeholderTextColor="#6B7280"
+        />
+      </View>
 
-          <Text style={styles.label}>{t("role_name")}</Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            style={styles.input}
-            placeholder={t("role_name_placeholder")}
-          />
+      {/* ---------------- Defaults ---------------- */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{t("defaults_optional")}</Text>
+
+        <View style={styles.rowBetween}>
+          <Text style={styles.label}>{t("use_role_defaults")}</Text>
+          <Switch value={useDefaults} onValueChange={setUseDefaults} />
         </View>
 
-        {/* ---------------- Defaults ---------------- */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{t("defaults_optional")}</Text>
+        <Text style={styles.helper}>{t("role_defaults_help")}</Text>
 
-          <View style={styles.rowBetween}>
-            <Text style={styles.label}>{t("use_role_defaults")}</Text>
-            <Switch value={useDefaults} onValueChange={setUseDefaults} />
-          </View>
+        <View style={{ height: 10 }} />
 
-          <Text style={styles.helper}>{t("role_defaults_help")}</Text>
+        <Text style={styles.label}>{t("default_hourly_wage")}</Text>
+        <TextInput
+          value={wageText}
+          onChangeText={setWageText}
+          editable={useDefaults}
+          keyboardType="decimal-pad"
+          placeholder={t("leave_blank_fallback")}
+          placeholderTextColor="#6B7280"
+          style={[styles.input, !useDefaults && styles.inputDisabled]}
+        />
 
-          <View style={{ height: 10 }} />
+        <Text style={[styles.label, { marginTop: 10 }]}>{t("default_break_minutes")}</Text>
+        <TextInput
+          value={breakText}
+          onChangeText={setBreakText}
+          editable={useDefaults}
+          keyboardType="number-pad"
+          placeholder={t("leave_blank_fallback")}
+          placeholderTextColor="#6B7280"
+          style={[styles.input, !useDefaults && styles.inputDisabled]}
+        />
 
-          <Text style={styles.label}>{t("default_hourly_wage")}</Text>
-          <TextInput
-            value={wageText}
-            onChangeText={setWageText}
-            editable={useDefaults}
-            keyboardType="decimal-pad"
-            placeholder={t("leave_blank_fallback")}
-            style={[styles.input, !useDefaults && styles.inputDisabled]}
-          />
-
-          <Text style={[styles.label, { marginTop: 10 }]}>
-            {t("default_break_minutes")}
-          </Text>
-          <TextInput
-            value={breakText}
-            onChangeText={setBreakText}
-            editable={useDefaults}
-            keyboardType="number-pad"
-            placeholder={t("leave_blank_fallback")}
-            style={[styles.input, !useDefaults && styles.inputDisabled]}
-          />
-
-          <View style={[styles.rowBetween, { marginTop: 10 }]}>
-            <Text style={styles.label}>{t("default_deduct_unpaid_break")}</Text>
-            <Switch
-              value={unpaidBreak}
-              onValueChange={setUnpaidBreak}
-              disabled={!useDefaults}
-            />
-          </View>
+        <View style={[styles.rowBetween, { marginTop: 10 }]}>
+          <Text style={styles.label}>{t("default_deduct_unpaid_break")}</Text>
+          <Switch value={unpaidBreak} onValueChange={setUnpaidBreak} disabled={!useDefaults} />
         </View>
+      </View>
 
-        {/* ---------------- Actions ---------------- */}
-        <Pressable style={styles.saveBtn} onPress={onSave}>
-          <Text style={styles.saveBtnText}>{t("save")}</Text>
-        </Pressable>
+      {/* ---------------- Actions ---------------- */}
+      <Pressable style={[styles.btn, styles.btnGreen]} onPress={onSave}>
+        <Text style={styles.btnText}>{t("save")}</Text>
+      </Pressable>
 
-        <Pressable
-          style={[styles.saveBtn, { backgroundColor: "#b91c1c" }]}
-          onPress={onDelete}
-        >
-          <Text style={styles.saveBtnText}>{t("delete_role_btn")}</Text>
-        </Pressable>
+      <Pressable style={[styles.btn, styles.btnRed]} onPress={onDelete}>
+        <Text style={styles.btnText}>{t("delete_role_btn")}</Text>
+      </Pressable>
 
-        <Pressable
-          style={[styles.saveBtn, { backgroundColor: "#e5e5e5" }]}
-          onPress={() => router.back()}
-        >
-          <Text style={[styles.saveBtnText, { color: "#111" }]}>
-            {t("cancel")}
-          </Text>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+      <Pressable style={[styles.btn, styles.btnDark]} onPress={() => router.back()}>
+        <Text style={styles.btnText}>{t("cancel")}</Text>
+      </Pressable>
+    </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f7f7f7" },
-  container: { padding: 16, paddingBottom: 30, gap: 12 },
-  title: { fontSize: 28, fontWeight: "800" },
+  // Dark header text
+  titleDark: { color: "white", fontSize: 28, fontWeight: "900" },
+  helperDark: { color: "#B8C0CC", fontSize: 13, lineHeight: 18 },
 
+  // Card
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: "#111827",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: "#1F2937",
     gap: 10,
   },
-  cardTitle: { fontSize: 16, fontWeight: "800" },
+  cardTitle: { color: "white", fontSize: 16, fontWeight: "900" },
 
-  label: { fontSize: 13, opacity: 0.7, marginBottom: 6 },
-  helper: { fontSize: 12, opacity: 0.6 },
+  label: { color: "#B8C0CC", fontSize: 13, marginBottom: 6 },
+  helper: { color: "#9CA3AF", fontSize: 12, lineHeight: 16 },
 
   input: {
     minHeight: 48,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#1F2937",
     borderRadius: 12,
     paddingHorizontal: 14,
-    backgroundColor: "#fff",
+    backgroundColor: "#0B0F1A",
     fontSize: 16,
+    color: "white",
   },
   inputDisabled: { opacity: 0.5 },
 
@@ -259,13 +232,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 
-  saveBtn: {
+  // Buttons
+  btn: {
     height: 52,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#111",
     marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#1F2937",
   },
-  saveBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  btnText: { color: "white", fontSize: 16, fontWeight: "900" },
+
+  btnGreen: { backgroundColor: "#16A34A", borderColor: "#14532D" },
+  btnRed: { backgroundColor: "#7F1D1D", borderColor: "#3F0A0A" },
+  btnBlue: { backgroundColor: "#2563EB", borderColor: "#1E3A8A" },
+  btnDark: { backgroundColor: "#111827" },
 });

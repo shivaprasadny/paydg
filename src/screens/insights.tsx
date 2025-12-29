@@ -6,16 +6,10 @@
 // ---------------------------------------------------------
 
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
+
 import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
@@ -136,10 +130,7 @@ export default function InsightsScreen() {
               weekendPct >= 0 ? "more" : "less"
             } on weekends.\nWeekend: ${money(weekendEarn)} • Weekday: ${money(weekdayEarn)}`;
 
-      list.push({
-        title: "Weekend vs Weekday",
-        body,
-      });
+      list.push({ title: "Weekend vs Weekday", body });
     }
 
     // Best workplace tips
@@ -190,53 +181,52 @@ export default function InsightsScreen() {
   }, [shifts]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <Screen pad={16}>
+      <ActiveShiftTimerCard />
 
-                <ActiveShiftTimerCard />
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Insights</Text>
-          <Pressable style={styles.btnSmall} onPress={() => router.back()}>
-            <Text style={styles.btnSmallText}>Back</Text>
-          </Pressable>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Insights</Text>
+        <Pressable style={styles.btnSmall} onPress={() => router.back()}>
+          <Text style={styles.btnSmallText}>Back</Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.sub}>
+        Quick patterns from your data. The more shifts you add, the smarter this gets.
+      </Text>
+
+      {loading ? (
+        <Text style={styles.helper}>Loading...</Text>
+      ) : insights.length === 0 ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>No insights yet</Text>
+          <Text style={styles.body}>
+            Add a few shifts first. Then you’ll see weekend patterns, best workplace/role, and
+            comparisons.
+          </Text>
         </View>
-
-        <Text style={styles.sub}>
-          Quick patterns from your data. The more shifts you add, the smarter this gets.
-        </Text>
-
-        {loading ? (
-          <Text style={styles.helper}>Loading...</Text>
-        ) : insights.length === 0 ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>No insights yet</Text>
-            <Text style={styles.body}>
-              Add a few shifts first. Then you’ll see weekend patterns, best workplace/role, and
-              comparisons.
-            </Text>
+      ) : (
+        insights.map((x, idx) => (
+          <View key={idx} style={styles.card}>
+            <Text style={styles.cardTitle}>{x.title}</Text>
+            <Text style={styles.body}>{x.body}</Text>
           </View>
-        ) : (
-          insights.map((x, idx) => (
-            <View key={idx} style={styles.card}>
-              <Text style={styles.cardTitle}>{x.title}</Text>
-              <Text style={styles.body}>{x.body}</Text>
-            </View>
-          ))
-        )}
-      </ScrollView>
-    </SafeAreaView>
+        ))
+      )}
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0B0F1A" },
-  container: { padding: 16, paddingBottom: 30, gap: 12 },
-
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   title: { color: "white", fontSize: 28, fontWeight: "900" },
   sub: { color: "#B8C0CC", marginTop: -6, lineHeight: 18 },
 
-  helper: { color: "#B8C0CC", opacity: 0.7 },
+  helper: { color: "#B8C0CC", opacity: 0.7, marginTop: 8 },
 
   card: {
     backgroundColor: "#111827",
@@ -245,6 +235,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     gap: 8,
+    marginTop: 12,
   },
   cardTitle: { color: "white", fontSize: 16, fontWeight: "900" },
   body: { color: "#B8C0CC", fontSize: 14, lineHeight: 20 },
