@@ -1,10 +1,8 @@
 // src/screens/punch.tsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
-  SafeAreaView,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -13,222 +11,332 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
-import { getProfile } from "../storage/repositories/profileRepo";
-import { listWorkplaces, getWorkplaceById } from "../storage/repositories/workplaceRepo";
-import { listRoles, getRoleById } from "../storage/repositories/roleRepo";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+
+import { getProfile } from "../storage/repositories/profileRepo";
+import {
+  getWorkplaceById,
+  listWorkplaces,
+} from "../storage/repositories/workplaceRepo";
+import { getRoleById, listRoles } from "../storage/repositories/roleRepo";
 
 import {
   ActivePunch,
-  getActivePunch,
-  setActivePunch,
   clearActivePunch,
-  punchOut as repoPunchOut,
+  getActivePunch,
+  punchIn,
+  punchOut,
 } from "../storage/repositories/punchRepo";
 
-function fmtTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+import { subscribePunchChanged } from "../storage/punchStore";
+import { formatDuration } from "../utils/timeUtils";
+
+/* ---------------- helpers ---------------- */
+
+function safeNumber(v: any) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
+
 function fmtMoney(n: number) {
   const val = Number.isFinite(n) ? n : 0;
   return `$${val.toFixed(2)}`;
 }
-function parseMoney(input: string) {
-  const cleaned = input.replace(/[^0-9.]/g, "");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
-}
-function parseBreakMinutes(input: string) {
-  const cleaned = input.replace(/[^0-9]/g, "");
-  const n = Number(cleaned);
-  if (!Number.isFinite(n)) return 30;
-  return Math.min(240, Math.max(0, Math.round(n)));
-}
-function makeId(prefix = "id") {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+
+function fmtTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
-function resolveDefaults(workplaceId: string, roleId?: string) {
+function diffMinutes(startISO: string, endISO: string) {
+  const s = new Date(startISO).getTime();
+  const e = new Date(endISO).getTime();
+  return Math.max(0, Math.round((e - s) / 60000));
+}
+
+function calcHourlyPay(workedMinutes: number, hourlyWage: number) {
+  const hours = workedMinutes / 60;
+  return Number((hours * hourlyWage).toFixed(2));
+}
+
+function resolveDefaults(params: {
+  workplaceId?: string;
+  roleId?: string;
+}) {
   const profile = getProfile();
-  const wp = workplaceId ? getWorkplaceById(workplaceId) : null;
-  const role = roleId ? getRoleById(roleId) : null;
+  const wp = params.workplaceId ? getWorkplaceById(params.workplaceId) : null;
+  const role = params.roleId ? getRoleById(params.roleId) : null;
 
-  const pWage = profile?.defaultHourlyWage ?? 0;
-  const pBreak = profile?.defaultBreakMinutes ?? 30;
-  const pUnpaid = profile?.defaultUnpaidBreak ?? true;
+  // order: Profile defaults -> Workplace defaults -> Role defaults
+  const hourlyWage =
+    role?.defaultHourlyWage ??
+    wp?.defaultHourlyWage ??
+    profile?.defaultHourlyWage ??
+    0;
 
-  const wWage = wp?.defaultHourlyWage;
-  const wBreak = wp?.defaultBreakMinutes;
-  const wUnpaid = wp?.defaultUnpaidBreak;
+  const breakMinutes =
+    role?.defaultBreakMinutes ??
+    wp?.defaultBreakMinutes ??
+    profile?.defaultBreakMinutes ??
+    30;
 
-  const rWage = role?.defaultHourlyWage;
-  const rBreak = role?.defaultBreakMinutes;
-  const rUnpaid = role?.defaultUnpaidBreak;
+  const unpaidBreak =
+    role?.defaultUnpaidBreak ??
+    wp?.defaultUnpaidBreak ??
+    profile?.defaultUnpaidBreak ??
+    false;
 
-  return {
-    hourlyWage: Number(rWage ?? wWage ?? pWage ?? 0),
-    breakMinutes: Number(rBreak ?? wBreak ?? pBreak ?? 30),
-    unpaidBreak: !!(rUnpaid ?? wUnpaid ?? pUnpaid),
-    workplaceName: wp?.name,
-    roleName: role?.name,
-  };
+  return { hourlyWage, breakMinutes, unpaidBreak };
 }
+
+/* ---------------- screen ---------------- */
 
 export default function PunchScreen() {
   const router = useRouter();
 
-  const [refreshKey, setRefreshKey] = useState(0);
+  // lists (sync from cache)
+  const workplaces = useMemo(() => listWorkplaces(), []);
+  const roles = useMemo(() => listRoles(), []);
+
+  // active punch
   const [active, setActive] = useState<ActivePunch | null>(null);
 
-  const workplaces = useMemo(() => listWorkplaces(), [refreshKey]);
-  const roles = useMemo(() => listRoles(), [refreshKey]);
+  const refreshActive = useCallback(async () => {
+    const p = await getActivePunch();
+    setActive(p);
+  }, []);
 
-  const [workplaceId, setWorkplaceId] = useState("");
+  useFocusEffect(
+    useCallback(() => {
+      refreshActive();
+    }, [refreshActive])
+  );
+
+  useEffect(() => {
+    refreshActive();
+    const unsub = subscribePunchChanged(() => {
+      refreshActive();
+    });
+    return unsub;
+  }, [refreshActive]);
+
+  // selection for punch-in
+  const [workplaceId, setWorkplaceId] = useState<string>("");
   const [roleId, setRoleId] = useState<string>("");
 
+  // inputs for punch-in + punch-out edit
   const [hourlyWageText, setHourlyWageText] = useState("0");
   const [breakMinutesText, setBreakMinutesText] = useState("30");
-  const [unpaidBreak, setUnpaidBreak] = useState(true);
+  const [unpaidBreak, setUnpaidBreak] = useState(false);
 
   const [cashTipsText, setCashTipsText] = useState("0");
   const [creditTipsText, setCreditTipsText] = useState("0");
   const [note, setNote] = useState("");
 
-  const hourlyWage = useMemo(() => parseMoney(hourlyWageText), [hourlyWageText]);
-  const breakMinutes = useMemo(() => parseBreakMinutes(breakMinutesText), [breakMinutesText]);
-  const cashTips = useMemo(() => parseMoney(cashTipsText), [cashTipsText]);
-  const creditTips = useMemo(() => parseMoney(creditTipsText), [creditTipsText]);
+  // init selection (first workplace)
+  useEffect(() => {
+    if (!workplaceId && workplaces.length > 0) {
+      const first = workplaces[0];
+      setWorkplaceId(first.id);
 
-  useFocusEffect(
-    useCallback(() => {
-      (async () => {
-        setRefreshKey((k) => k + 1);
+      const d = resolveDefaults({ workplaceId: first.id, roleId: undefined });
+      setHourlyWageText(String(d.hourlyWage));
+      setBreakMinutesText(String(d.breakMinutes));
+      setUnpaidBreak(!!d.unpaidBreak);
+    }
+  }, [workplaceId, workplaces]);
 
-        const a = await getActivePunch();
-        setActive(a);
+  // derived numbers
+  const hourlyWage = safeNumber(hourlyWageText);
+  const breakMinutes = Math.max(0, Math.round(safeNumber(breakMinutesText)));
 
-        const wps = listWorkplaces();
-        const defaultWpId = workplaceId || wps[0]?.id || "";
-        if (!workplaceId && defaultWpId) setWorkplaceId(defaultWpId);
+  // live elapsed timer (only when active)
+  const elapsedMs = useMemo(() => {
+    if (!active?.startedAtISO) return null;
+    const start = new Date(active.startedAtISO).getTime();
+    return Math.max(0, Date.now() - start);
+  }, [active?.startedAtISO]);
 
-        if (a) {
-          setHourlyWageText(String(a.hourlyWage ?? 0));
-          setBreakMinutesText(String(a.breakMinutes ?? 30));
-          setUnpaidBreak(a.unpaidBreak ?? true);
-        } else if (defaultWpId) {
-          const d = resolveDefaults(defaultWpId, roleId || undefined);
-          setHourlyWageText(String(d.hourlyWage));
-          setBreakMinutesText(String(d.breakMinutes));
-          setUnpaidBreak(d.unpaidBreak);
-        }
-      })();
-    }, [workplaceId, roleId])
-  );
+  // keep elapsed ticking every second while active
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => forceTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [active]);
 
+  const elapsedLabel =
+    active && active.startedAtISO
+      ? formatDuration(Math.max(0, Date.now() - new Date(active.startedAtISO).getTime()))
+      : "00:00:00";
+
+  // preview while active
   const preview = useMemo(() => {
     if (!active) return null;
 
-    const start = new Date(active.startedAtISO);
-    const end = new Date();
+    const endISO = new Date().toISOString();
+    const rawMins = diffMinutes(active.startedAtISO, endISO);
 
-    let minutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
-    if (unpaidBreak) minutes = Math.max(0, minutes - breakMinutes);
+    const shouldDeduct = !!unpaidBreak;
+    const netMins = shouldDeduct ? Math.max(0, rawMins - breakMinutes) : rawMins;
 
-    const hours = Number((minutes / 60).toFixed(2));
-    const hourlyPay = Number((hours * hourlyWage).toFixed(2));
-    const tips = Number((cashTips + creditTips).toFixed(2));
+    const hours = netMins / 60;
+    const hourlyPay = calcHourlyPay(netMins, hourlyWage);
+
+    const tips = safeNumber(cashTipsText) + safeNumber(creditTipsText);
     const total = Number((hourlyPay + tips).toFixed(2));
 
     return { hours, hourlyPay, tips, total };
-  }, [active, unpaidBreak, breakMinutes, hourlyWage, cashTips, creditTips]);
+  }, [active, unpaidBreak, breakMinutes, hourlyWage, cashTipsText, creditTipsText]);
 
-  async function onPunchIn() {
+  /* ---------------- actions ---------------- */
+
+  const onSelectWorkplace = useCallback(
+    (id: string) => {
+      setWorkplaceId(id);
+
+      const d = resolveDefaults({ workplaceId: id, roleId: roleId || undefined });
+      setHourlyWageText(String(d.hourlyWage));
+      setBreakMinutesText(String(d.breakMinutes));
+      setUnpaidBreak(!!d.unpaidBreak);
+    },
+    [roleId]
+  );
+
+  const onSelectRole = useCallback(
+    (id: string) => {
+      setRoleId(id);
+
+      const d = resolveDefaults({ workplaceId, roleId: id || undefined });
+      setHourlyWageText(String(d.hourlyWage));
+      setBreakMinutesText(String(d.breakMinutes));
+      setUnpaidBreak(!!d.unpaidBreak);
+    },
+    [workplaceId]
+  );
+
+  const onPunchIn = useCallback(async () => {
     if (!workplaceId) {
-      Alert.alert("Workplace", "Please select a workplace.");
+      Alert.alert("Select workplace", "Please choose a workplace first.");
       return;
     }
 
-    const d = resolveDefaults(workplaceId, roleId || undefined);
+    const wp = getWorkplaceById(workplaceId);
+    const role = roleId ? getRoleById(roleId) : null;
 
-    const punch: ActivePunch = {
-      id: makeId("punch"),
-      startedAtISO: new Date().toISOString(),
-      workplaceId,
-      workplaceName: d.workplaceName,
-      roleId: roleId || undefined,
-      roleName: d.roleName,
-      hourlyWage: d.hourlyWage,
-      breakMinutes: d.breakMinutes,
-      unpaidBreak: d.unpaidBreak,
-    };
+    try {
+      await punchIn({
+        workplaceId,
+        workplaceName: wp?.name,
+        roleId: roleId || undefined,
+        roleName: role?.name,
+        hourlyWage,
+        breakMinutes,
+        unpaidBreak,
+        note: note.trim() || undefined,
+      });
 
-    await setActivePunch(punch);
-    setActive(punch);
+      // reset tips inputs for punch-out
+      setCashTipsText("0");
+      setCreditTipsText("0");
 
-    setHourlyWageText(String(punch.hourlyWage));
-    setBreakMinutesText(String(punch.breakMinutes));
-   setUnpaidBreak(punch.unpaidBreak ?? true);
+      await refreshActive();
+    } catch (e) {
+      Alert.alert("Error", "Could not punch in.");
+    }
+  }, [
+    workplaceId,
+    roleId,
+    hourlyWage,
+    breakMinutes,
+    unpaidBreak,
+    note,
+    refreshActive,
+  ]);
 
+  const onPunchOut = useCallback(async () => {
+    try {
+      const shift = await punchOut({
+        cashTips: safeNumber(cashTipsText),
+        creditTips: safeNumber(creditTipsText),
+        note: note.trim() || undefined,
+      });
 
-    setCashTipsText("0");
-    setCreditTipsText("0");
-    setNote("");
+      if (!shift) return;
 
-    Alert.alert("Punched In ✅", `Started at ${fmtTime(punch.startedAtISO)}`);
-  }
+      // clear local UI
+      setNote("");
+      setCashTipsText("0");
+      setCreditTipsText("0");
 
-  async function onPunchOut() {
-    if (!active) return;
+      await refreshActive();
 
-    // ✅ Use repo punchOut so Home/auto-close stays consistent
-    await repoPunchOut({
-      cashTips,
-      creditTips,
-      note: note.trim(),
-    });
+      Alert.alert("Saved ✅", "Shift saved to History.");
+      router.back();
+    } catch (e) {
+      Alert.alert("Error", "Could not punch out.");
+    }
+  }, [cashTipsText, creditTipsText, note, refreshActive, router]);
 
-    setActive(null);
-    Alert.alert("Saved ✅", "Shift saved to History.", [
-      { text: "OK", onPress: () => router.push("/history") },
-    ]);
-  }
-
-  async function onCancelPunch() {
-    if (!active) return;
-    Alert.alert("Cancel active punch?", "This will remove the running punch without saving.", [
-      { text: "Keep", style: "cancel" },
+  const onCancelPunch = useCallback(async () => {
+    Alert.alert("Cancel punch?", "This will remove the active shift (no save).", [
+      { text: "No", style: "cancel" },
       {
-        text: "Cancel Punch",
+        text: "Yes, cancel",
         style: "destructive",
         onPress: async () => {
-          await clearActivePunch();
-          setActive(null);
+          try {
+            await clearActivePunch();
+            setNote("");
+            setCashTipsText("0");
+            setCreditTipsText("0");
+            await refreshActive();
+          } catch (e) {
+            Alert.alert("Error", "Could not cancel punch.");
+          }
         },
       },
     ]);
-  }
+  }, [refreshActive]);
+
+  /* ---------------- UI ---------------- */
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <Screen>
+      <View style={styles.container}>
+        <ActiveShiftTimerCard />
 
-                <ActiveShiftTimerCard />
-        <Text style={styles.title}>Punch</Text>
-        <Text style={styles.sub}>Tap in → tap out. No start/end typing.</Text>
+        {/* Header */}
+        <View style={styles.headerRow}>
+         
+
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Punch</Text>
+            <Text style={styles.sub}>Tap in → tap out. No start/end typing.</Text>
+          </View>
+        </View>
 
         {active ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Active Shift</Text>
+
             <Text style={styles.bigLine}>
               {active.workplaceName ?? "Workplace"}
               {active.roleName ? ` • ${active.roleName}` : ""}
             </Text>
-            <Text style={styles.muted}>Started: {fmtTime(active.startedAtISO)}</Text>
 
-            <View style={{ height: 10 }} />
+            <Text style={styles.muted}>
+              Started: {fmtTime(active.startedAtISO)} • Elapsed: {elapsedLabel}
+            </Text>
 
+            <View style={{ height: 8 }} />
+
+            {/* Hourly wage */}
             <Text style={styles.label}>Hourly wage</Text>
             <TextInput
               value={hourlyWageText}
@@ -239,7 +347,8 @@ export default function PunchScreen() {
               style={styles.input}
             />
 
-            <Text style={[styles.label, { marginTop: 10 }]}>Break minutes</Text>
+            {/* Break */}
+            <Text style={[styles.label, styles.mt]}>Break minutes</Text>
             <TextInput
               value={breakMinutesText}
               onChangeText={setBreakMinutesText}
@@ -249,14 +358,14 @@ export default function PunchScreen() {
               style={styles.input}
             />
 
-            <View style={[styles.rowBetween, { marginTop: 10 }]}>
+            {/* Unpaid break */}
+            <View style={[styles.rowBetween, styles.mt]}>
               <Text style={styles.label}>Deduct unpaid break</Text>
               <Switch value={unpaidBreak} onValueChange={setUnpaidBreak} />
             </View>
 
-            <View style={{ height: 10 }} />
-
-            <Text style={styles.label}>Cash tips</Text>
+            {/* Tips */}
+            <Text style={[styles.label, styles.mt]}>Cash tips</Text>
             <TextInput
               value={cashTipsText}
               onChangeText={setCashTipsText}
@@ -266,7 +375,7 @@ export default function PunchScreen() {
               style={styles.input}
             />
 
-            <Text style={[styles.label, { marginTop: 10 }]}>Card tips</Text>
+            <Text style={[styles.label, styles.mt]}>Card tips</Text>
             <TextInput
               value={creditTipsText}
               onChangeText={setCreditTipsText}
@@ -276,43 +385,33 @@ export default function PunchScreen() {
               style={styles.input}
             />
 
-            <Text style={[styles.label, { marginTop: 10 }]}>Note</Text>
+            {/* Note */}
+            <Text style={[styles.label, styles.mt]}>Note</Text>
             <TextInput
               value={note}
               onChangeText={setNote}
               placeholder="Optional note…"
               placeholderTextColor="#6B7280"
-              style={[styles.input, { minHeight: 70, paddingTop: 12 }]}
+              style={[styles.input, styles.noteInput]}
               multiline
             />
 
             {!!preview && (
               <View style={styles.preview}>
                 <Text style={styles.previewTitle}>Live Preview</Text>
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Hours</Text>
-                  <Text style={styles.previewValue}>{preview.hours.toFixed(2)}h</Text>
-                </View>
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Wage</Text>
-                  <Text style={styles.previewValue}>{fmtMoney(preview.hourlyPay)}</Text>
-                </View>
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Tips</Text>
-                  <Text style={styles.previewValue}>{fmtMoney(preview.tips)}</Text>
-                </View>
-                <View style={[styles.previewRow, { marginTop: 6 }]}>
-                  <Text style={[styles.previewLabel, { fontWeight: "900" }]}>Total</Text>
-                  <Text style={[styles.previewValue, { fontSize: 18 }]}>{fmtMoney(preview.total)}</Text>
-                </View>
+
+                <PreviewRow label="Hours" value={`${preview.hours.toFixed(2)}h`} />
+                <PreviewRow label="Wage" value={fmtMoney(preview.hourlyPay)} />
+                <PreviewRow label="Tips" value={fmtMoney(preview.tips)} />
+                <PreviewRow label="Total" value={fmtMoney(preview.total)} bold />
               </View>
             )}
 
-            <Pressable style={[styles.btn, { backgroundColor: "#16A34A" }]} onPress={onPunchOut}>
+            <Pressable style={[styles.btn, styles.btnGreen]} onPress={onPunchOut}>
               <Text style={styles.btnText}>Punch Out (Save)</Text>
             </Pressable>
 
-            <Pressable style={[styles.btn, { backgroundColor: "#7F1D1D" }]} onPress={onCancelPunch}>
+            <Pressable style={[styles.btn, styles.btnRed]} onPress={onCancelPunch}>
               <Text style={styles.btnText}>Cancel Punch</Text>
             </Pressable>
           </View>
@@ -327,14 +426,8 @@ export default function PunchScreen() {
                 return (
                   <Pressable
                     key={w.id}
-                    onPress={() => {
-                      setWorkplaceId(w.id);
-                      const d = resolveDefaults(w.id, roleId || undefined);
-                      setHourlyWageText(String(d.hourlyWage));
-                      setBreakMinutesText(String(d.breakMinutes));
-                      setUnpaidBreak(d.unpaidBreak);
-                    }}
-                    style={[styles.pickRow, selected && { borderColor: "#2563EB" }]}
+                    onPress={() => onSelectWorkplace(w.id)}
+                    style={[styles.pickRow, selected && styles.pickRowActive]}
                   >
                     <Text style={styles.pickText}>{w.name}</Text>
                     <Text style={styles.pickHint}>{selected ? "Selected" : "Tap"}</Text>
@@ -348,14 +441,8 @@ export default function PunchScreen() {
             <Text style={styles.label}>Role (optional)</Text>
             <View style={{ gap: 10 }}>
               <Pressable
-                onPress={() => {
-                  setRoleId("");
-                  const d = resolveDefaults(workplaceId, undefined);
-                  setHourlyWageText(String(d.hourlyWage));
-                  setBreakMinutesText(String(d.breakMinutes));
-                  setUnpaidBreak(d.unpaidBreak);
-                }}
-                style={[styles.pickRow, !roleId && { borderColor: "#2563EB" }]}
+                onPress={() => onSelectRole("")}
+                style={[styles.pickRow, !roleId && styles.pickRowActive]}
               >
                 <Text style={styles.pickText}>No role</Text>
                 <Text style={styles.pickHint}>{!roleId ? "Selected" : "Tap"}</Text>
@@ -366,14 +453,8 @@ export default function PunchScreen() {
                 return (
                   <Pressable
                     key={r.id}
-                    onPress={() => {
-                      setRoleId(r.id);
-                      const d = resolveDefaults(workplaceId, r.id);
-                      setHourlyWageText(String(d.hourlyWage));
-                      setBreakMinutesText(String(d.breakMinutes));
-                      setUnpaidBreak(d.unpaidBreak);
-                    }}
-                    style={[styles.pickRow, selected && { borderColor: "#2563EB" }]}
+                    onPress={() => onSelectRole(r.id)}
+                    style={[styles.pickRow, selected && styles.pickRowActive]}
                   >
                     <Text style={styles.pickText}>{r.name}</Text>
                     <Text style={styles.pickHint}>{selected ? "Selected" : "Tap"}</Text>
@@ -386,100 +467,149 @@ export default function PunchScreen() {
 
             <View style={styles.preview}>
               <Text style={styles.previewTitle}>Defaults</Text>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Hourly wage</Text>
-                <Text style={styles.previewValue}>{fmtMoney(hourlyWage)}</Text>
-              </View>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Break</Text>
-                <Text style={styles.previewValue}>{breakMinutes}m</Text>
-              </View>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Unpaid break</Text>
-                <Text style={styles.previewValue}>{unpaidBreak ? "Yes" : "No"}</Text>
-              </View>
+              <PreviewRow label="Hourly wage" value={fmtMoney(hourlyWage)} />
+              <PreviewRow label="Break" value={`${breakMinutes}m`} />
+              <PreviewRow label="Unpaid break" value={unpaidBreak ? "Yes" : "No"} />
             </View>
 
-            <Pressable style={[styles.btn, { backgroundColor: "#2563EB" }]} onPress={onPunchIn}>
+            <Pressable style={[styles.btn, styles.btnBlue]} onPress={onPunchIn}>
               <Text style={styles.btnText}>Punch In Now</Text>
             </Pressable>
           </View>
         )}
-
-        <Pressable style={[styles.btn, { backgroundColor: "#111827" }]} onPress={() => router.back()}>
-          <Text style={styles.btnText}>Back</Text>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </Screen>
   );
 }
 
+/* ---------------- small helper row ---------------- */
+
+function PreviewRow({
+  label,
+  value,
+  bold,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+}) {
+  return (
+    <View style={styles.previewRow}>
+      <Text style={[styles.previewLabel, bold && { fontWeight: "900" }]}>{label}</Text>
+      <Text style={[styles.previewValue, bold && { fontSize: 18 }]}>{value}</Text>
+    </View>
+  );
+}
+
+/* ---------------- styles ---------------- */
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0B0F1A" },
-  container: { padding: 16, paddingBottom: 30, gap: 12 },
+  container: {
+    padding: 20,
+    paddingBottom: 30,
+    gap: 14,
+  },
 
-  title: { color: "white", fontSize: 28, fontWeight: "900" },
-  sub: { color: "#B8C0CC", marginTop: -6, lineHeight: 18 },
-
-  card: {
+  headerRow: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: "#111827",
     borderWidth: 1,
     borderColor: "#1F2937",
-    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  backText: { color: "white", fontSize: 20, fontWeight: "900" },
+
+  title: {
+    color: "white",
+    fontSize: 28,
+    fontWeight: "900",
+    marginBottom: 4, // ✅ keeps subtitle from touching
+  },
+  sub: {
+    color: "#B8C0CC",
+    fontSize: 14,
+    lineHeight: 18,
+  },
+
+  card: {
+    backgroundColor: "#111827",
+    borderRadius: 16,
     padding: 14,
+    borderWidth: 1,
+    borderColor: "#1F2937",
     gap: 10,
   },
   cardTitle: { color: "white", fontSize: 16, fontWeight: "900" },
-  bigLine: { color: "white", fontSize: 15, fontWeight: "800" },
-  muted: { color: "#B8C0CC", fontSize: 13 },
 
-  label: { color: "#B8C0CC", fontSize: 13, marginBottom: 6 },
+  bigLine: { color: "white", fontSize: 16, fontWeight: "800" },
+  muted: { color: "#9CA3AF", fontSize: 12 },
+
+  label: { color: "#B8C0CC", fontSize: 13 },
   input: {
     backgroundColor: "#0B0F1A",
     borderWidth: 1,
     borderColor: "#1F2937",
     borderRadius: 12,
-    paddingHorizontal: 12,
-    minHeight: 48,
-    color: "white",
-    fontSize: 16,
-  },
-
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-
-  pickRow: {
-    backgroundColor: "#0B0F1A",
-    borderWidth: 1,
-    borderColor: "#1F2937",
-    borderRadius: 12,
     padding: 12,
+    color: "white",
+  },
+  noteInput: { minHeight: 70, textAlignVertical: "top" },
+
+  rowBetween: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  pickText: { color: "white", fontWeight: "800" },
-  pickHint: { color: "#6B7280", fontWeight: "700" },
 
   preview: {
     backgroundColor: "#0B0F1A",
+    borderRadius: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: "#1F2937",
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
+    gap: 6,
   },
   previewTitle: { color: "white", fontWeight: "900" },
-  previewRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  previewLabel: { color: "#B8C0CC", fontSize: 13 },
-  previewValue: { color: "white", fontWeight: "900", fontSize: 14 },
+  previewRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  previewLabel: { color: "#9CA3AF" },
+  previewValue: { color: "white", fontWeight: "800" },
+
+  pickRow: {
+    backgroundColor: "#0B0F1A",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#1F2937",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  pickRowActive: { borderColor: "#2563EB" },
+  pickText: { color: "white", fontWeight: "800" },
+  pickHint: { color: "#9CA3AF", fontSize: 12 },
 
   btn: {
-    height: 52,
+    padding: 14,
     borderRadius: 14,
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#111",
-    marginTop: 4,
+    marginTop: 6,
   },
-  btnText: { color: "white", fontWeight: "900", fontSize: 16 },
+  btnText: { color: "white", fontWeight: "900" },
+  btnGreen: { backgroundColor: "#16A34A" },
+  btnRed: { backgroundColor: "#7F1D1D" },
+  btnBlue: { backgroundColor: "#2563EB" },
+
+  mt: { marginTop: 10 },
 });

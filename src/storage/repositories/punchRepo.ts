@@ -4,18 +4,18 @@
 // ---------------------------------------------------------
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { notifyPunchChanged } from "../punchStore";
 
 const ACTIVE_KEY = "paydg_active_shift_v1";
 const SHIFTS_KEY = "paydg_shifts_v1";
 
-const MAX_SHIFT_HOURS = 14;
+const MAX_SHIFT_HOURS = 16;
 const MAX_SHIFT_MS = MAX_SHIFT_HOURS * 60 * 60 * 1000;
 
 export type ActivePunch = {
   id: string; // active punch id
   startedAtISO: string; // punch in time
 
-  // optional metadata (use what you already store)
   workplaceId?: string;
   workplaceName?: string;
 
@@ -53,7 +53,6 @@ type Shift = {
 
   note?: string;
 
-  // ✅ new flags
   autoClosed?: boolean;
 };
 
@@ -70,7 +69,11 @@ function diffMinutes(startISO: string, endISO: string) {
   return Math.max(0, Math.round((e - s) / 60000));
 }
 
-function applyUnpaidBreak(workedMinutes: number, unpaidBreak?: boolean, breakMinutes?: number) {
+function applyUnpaidBreak(
+  workedMinutes: number,
+  unpaidBreak?: boolean,
+  breakMinutes?: number
+) {
   if (!unpaidBreak) return workedMinutes;
   const deduct = Math.max(0, Number(breakMinutes ?? 0));
   return Math.max(0, workedMinutes - deduct);
@@ -88,7 +91,9 @@ function safeNumber(n: any) {
 }
 
 function makeId(prefix = "sh") {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 }
 
 /* -----------------------------
@@ -102,11 +107,13 @@ export async function getActivePunch(): Promise<ActivePunch | null> {
 
 export async function setActivePunch(p: ActivePunch) {
   await AsyncStorage.setItem(ACTIVE_KEY, JSON.stringify(p));
+  notifyPunchChanged(); // ✅ updates home timer instantly
   return p;
 }
 
 export async function clearActivePunch() {
   await AsyncStorage.removeItem(ACTIVE_KEY);
+  notifyPunchChanged(); // ✅ updates home timer instantly
 }
 
 /* -----------------------------
@@ -134,17 +141,24 @@ async function appendShift(shift: Shift) {
    Punch actions
 ------------------------------ */
 
-export async function punchIn(payload: Omit<ActivePunch, "id" | "startedAtISO">) {
+export async function punchIn(
+  payload: Omit<ActivePunch, "id" | "startedAtISO">
+) {
   const active: ActivePunch = {
     id: makeId("punch"),
     startedAtISO: new Date().toISOString(),
     ...payload,
   };
-  await setActivePunch(active);
+
+  await setActivePunch(active); // ✅ triggers notify
   return active;
 }
 
-export async function punchOut(params?: { cashTips?: number; creditTips?: number; note?: string }) {
+export async function punchOut(params?: {
+  cashTips?: number;
+  creditTips?: number;
+  note?: string;
+}) {
   const active = await getActivePunch();
   if (!active) return null;
 
@@ -160,7 +174,6 @@ export async function punchOut(params?: { cashTips?: number; creditTips?: number
   const cashTips = safeNumber(params?.cashTips);
   const creditTips = safeNumber(params?.creditTips);
   const totalTips = Number((cashTips + creditTips).toFixed(2));
-
   const totalEarned = Number((hourlyPay + totalTips).toFixed(2));
 
   const isoDate = toISODateLocal(new Date(startISO));
@@ -191,14 +204,13 @@ export async function punchOut(params?: { cashTips?: number; creditTips?: number
   };
 
   await appendShift(shift);
-  await clearActivePunch();
+  await clearActivePunch(); // ✅ triggers notify
 
   return shift;
 }
 
 /* -----------------------------
    ✅ AUTO CLOSE after 14 hours
-   Call this on app start + when Home is focused
 ------------------------------ */
 
 export async function autoCloseIfNeeded() {
@@ -208,12 +220,10 @@ export async function autoCloseIfNeeded() {
   const startMs = new Date(active.startedAtISO).getTime();
   const nowMs = Date.now();
 
-  // Not expired
   if (nowMs - startMs < MAX_SHIFT_MS) {
     return { didClose: false as const };
   }
 
-  // ✅ auto end time = start + 14 hours
   const endISO = new Date(startMs + MAX_SHIFT_MS).toISOString();
   const startISO = active.startedAtISO;
 
@@ -251,7 +261,6 @@ export async function autoCloseIfNeeded() {
     totalTips,
     totalEarned,
 
-    // ✅ mark clearly
     note: active.note
       ? `${active.note}\n⏱ Auto-closed after ${MAX_SHIFT_HOURS} hours (forgot punch out)`
       : `⏱ Auto-closed after ${MAX_SHIFT_HOURS} hours (forgot punch out)`,
@@ -259,7 +268,7 @@ export async function autoCloseIfNeeded() {
   };
 
   await appendShift(shift);
-  await clearActivePunch();
+  await clearActivePunch(); // ✅ triggers notify
 
   return { didClose: true as const, shift };
 }

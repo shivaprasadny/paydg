@@ -1,32 +1,21 @@
-import React, { useCallback, useState } from "react";
-import { View, Text } from "react-native";
-import { useFocusEffect } from "expo-router";
-
-import { getActivePunch } from "../storage/repositories/punchRepo";
+import React from "react";
+import { Pressable, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useActivePunch } from "../hooks/useActivePunch";
 import { usePunchTimer } from "../hooks/usePunchTimer";
 import { formatDuration } from "../utils/timeUtils";
 
 export default function ActiveShiftTimerCard() {
-  const [activePunch, setActivePunch] = useState<any>(null);
+  const router = useRouter();
 
-  const refresh = useCallback(async () => {
-    const p = await getActivePunch();
-    setActivePunch(p);
-  }, []);
-
-  // ✅ re-load every time this screen becomes active
-  useFocusEffect(
-    useCallback(() => {
-      refresh();
-    }, [refresh])
-  );
-
+  const activePunch = useActivePunch(); // ✅ auto refresh on punch in/out
   const elapsedMs = usePunchTimer(activePunch?.startedAtISO);
 
-  if (!activePunch || elapsedMs === null) return null;
+  if (!activePunch || elapsedMs == null) return null;
 
   return (
-    <View
+    <Pressable
+      onPress={() => router.push("/punch")}
       style={{
         backgroundColor: "#052e16",
         borderRadius: 16,
@@ -50,8 +39,8 @@ export default function ActiveShiftTimerCard() {
       </Text>
 
       <Text style={{ color: "#86efac", fontSize: 12, marginTop: 4 }}>
-        Auto-closes at 14 hours
+        Tap to open Punch screen • Auto-closes at 16 hours
       </Text>
-    </View>
+    </Pressable>
   );
 }

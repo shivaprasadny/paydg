@@ -327,18 +327,16 @@ export default function StatsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <Screen bg="#f7f7f7" pad={16}>
+    <ActiveShiftTimerCard />
 
-                <ActiveShiftTimerCard />
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Stats</Text>
-
-          <Pressable style={styles.filterBtn} onPress={() => setWorkplaceModal(true)}>
-            <Text style={styles.filterText}>{workplaceLabel}</Text>
-          </Pressable>
-        </View>
+    {/* Header */}
+    <View style={styles.headerRow}>
+      <Text style={styles.title}>Stats</Text>
+      <Pressable style={styles.filterBtn} onPress={() => setWorkplaceModal(true)}>
+        <Text style={styles.filterText}>{workplaceLabel}</Text>
+      </Pressable>
+    </View>
 
         {/* Tabs */}
         <View style={styles.tabs}>
@@ -515,8 +513,7 @@ export default function StatsScreen() {
             </View>
           </Pressable>
         </Modal>
-      </ScrollView>
-    </SafeAreaView>
+       </Screen>
   );
 }
 

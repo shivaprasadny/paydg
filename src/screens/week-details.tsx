@@ -9,7 +9,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
-  SafeAreaView,
+ 
   ScrollView,
   StyleSheet,
   Text,
@@ -86,8 +86,8 @@ export default function WeekDetailsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <Screen>
+      
         
                 <ActiveShiftTimerCard />
         <Text style={styles.subTitle}>{label}</Text>
@@ -126,8 +126,10 @@ export default function WeekDetailsScreen() {
         </View>
 
         <Text style={styles.helper}>Tap any shift to edit.</Text>
-      </ScrollView>
-    </SafeAreaView>
+   
+      
+      </Screen>
+  
   );
 }
 

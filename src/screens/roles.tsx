@@ -44,8 +44,7 @@ export default function RolesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <Screen bg="#f7f7f7" pad={16}>
 
                 <ActiveShiftTimerCard />
         <Text style={styles.title}>{t("roles_title")}</Text>
@@ -88,8 +87,7 @@ export default function RolesScreen() {
             ))
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+     </Screen>
   );
 }
 

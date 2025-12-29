@@ -1,7 +1,7 @@
 // app/index.tsx
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  SafeAreaView,
+  
   Text,
   TouchableOpacity,
   View,
@@ -22,7 +22,8 @@ import {
 
 import { usePunchTimer } from "../src/hooks/usePunchTimer";
 import { formatDuration } from "../src/utils/timeUtils";
-
+import ActiveShiftTimerCard from "@/src/components/ActiveShiftTimerCard";
+import Screen from "../src/components/Screen";
 
 const SHIFTS_KEY = "paydg_shifts_v1";
 
@@ -190,11 +191,10 @@ export default function Home() {
   const last = shifts[0] ?? null;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0B0F1A" }}>
-      <ScrollView
-        contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
-      >
+   
+  <Screen>
+
+
         {/* Greeting */}
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
           <Text style={{ color: "white", fontSize: 28, fontWeight: "800" }}>
@@ -210,35 +210,14 @@ export default function Home() {
         </Text>
 
         {/* ✅ LIVE TIMER CARD */}
-        {activePunch && elapsedMs !== null && (
-          <View
-            style={{
-              backgroundColor: "#052e16",
-              borderRadius: 16,
-              padding: 16,
-              marginTop: 14,
-              borderWidth: 1,
-              borderColor: "#16a34a",
-            }}
-          >
-            <Text style={{ color: "#bbf7d0", fontWeight: "900", fontSize: 16 }}>
-              🟢 Shift In Progress
-            </Text>
 
-            <Text style={{ color: "#86efac", marginTop: 6 }}>
-              {activePunch.workplaceName ?? "Workplace"}
-              {activePunch.roleName ? ` • ${activePunch.roleName}` : ""}
-            </Text>
 
-            <Text style={{ color: "white", fontSize: 28, fontWeight: "900", marginTop: 8 }}>
-              ⏱ {formatDuration(elapsedMs)}
-            </Text>
+         <ActiveShiftTimerCard />
 
-            <Text style={{ color: "#86efac", fontSize: 12, marginTop: 4 }}>
-              Auto-closes at 14 hours
-            </Text>
-          </View>
-        )}
+
+
+
+
 
         {/* Quick Stats */}
         <View
@@ -319,6 +298,8 @@ export default function Home() {
           <NavButton label={t("manage_workplaces")} onPress={() => router.push("/workplaces")} />
           <NavButton label={t("roles_btn")} onPress={() => router.push("/roles")} />
           <NavButton label={t("settings_btn")} onPress={() => router.push("/settings")} />
+            <NavButton label="📘 Quick Guide" onPress={() => router.push("/quick-guide")} />
+
           <NavButton label={t("about_btn")} onPress={() => router.push("/about")} />
           <NavButton label="💾 Backup / Restore" onPress={() => router.push("/backup")} />
         </View>
@@ -326,7 +307,7 @@ export default function Home() {
         <Text style={{ color: "#6B7280", marginTop: 16, fontSize: 12 }}>
           {t("tip_defaults")}
         </Text>
-      </ScrollView>
-    </SafeAreaView>
+      
+</Screen>
   );
 }

@@ -321,8 +321,7 @@ export default function AddShiftScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+  <Screen bg="#f7f7f7" pad={16}>
       <ActiveShiftTimerCard />
         {/* Header */}
         <View style={styles.topRow}>
@@ -546,8 +545,9 @@ export default function AddShiftScreen() {
         <Pressable style={styles.saveBtn} onPress={saveShift}>
           <Text style={styles.saveBtnText}>{t("save_shift")}</Text>
         </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+        
+        
+     </Screen >
   );
 }
 

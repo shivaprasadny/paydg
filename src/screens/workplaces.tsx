@@ -24,6 +24,8 @@ import { useLang } from "../i18n/useLang";
 import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
+
+
 export default function WorkplacesScreen() {
   const router = useRouter();
   const profile = getProfile();
@@ -182,7 +184,7 @@ export default function WorkplacesScreen() {
           keyExtractor={(item: any) => item.id}
           contentContainerStyle={{
             paddingHorizontal: 20,
-            paddingBottom: 120, // ✅ extra space so bottom is never cut on Android
+            paddingBottom: 10, // ✅ extra space so bottom is never cut on Android
             gap: 10,
           }}
           renderItem={({ item }: any) => (
@@ -236,7 +238,7 @@ export default function WorkplacesScreen() {
       </View>
 
       {/* Continue */}
-      <View style={{ padding: 20, paddingBottom: 30 }}>
+      <View style={{ padding: 20, paddingBottom: 0 }}>
         <TouchableOpacity
           onPress={() => router.replace("/")}
           disabled={!canContinue}

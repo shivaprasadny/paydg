@@ -111,11 +111,10 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <Screen bg="#f7f7f7" pad={16}>
 
                 <ActiveShiftTimerCard />
-        <Text style={styles.title}>Settings</Text>
+       
 
         {/* -------------------- User -------------------- */}
         <View style={styles.card}>
@@ -173,8 +172,7 @@ export default function SettingsScreen() {
         >
           <Text style={[styles.saveBtnText, { color: "#111" }]}>Cancel</Text>
         </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+      </Screen>
   );
 }
 
