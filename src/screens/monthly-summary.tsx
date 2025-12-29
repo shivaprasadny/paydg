@@ -7,6 +7,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
+import { Stack } from "expo-router";
 
 const SHIFTS_KEY = "paydg_shifts_v1";
 
@@ -165,6 +166,9 @@ export default function MonthlySummaryScreen() {
 
   return (
     <Screen pad={16}>
+
+        <Stack.Screen options={{ title: "Monthly Summary" }} />
+
       <ActiveShiftTimerCard />
 
       <View style={styles.headerRow}>

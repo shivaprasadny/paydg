@@ -2,6 +2,7 @@ import React from "react";
 import { Text, View } from "react-native";
 import Screen from "../components/Screen";
 import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import { Stack } from "expo-router";
 
 /* ---------------- styles ---------------- */
 
@@ -92,6 +93,9 @@ const boldRed = { color: "#fff", fontWeight: "900" } as const;
 export default function QuickGuideScreen() {
   return (
     <Screen pad={20}>
+      <Stack.Screen options={{ title: "Quick Guide" }} />
+
+
       <View style={{ gap: 14, paddingBottom: 10 }}>
         <ActiveShiftTimerCard />
 

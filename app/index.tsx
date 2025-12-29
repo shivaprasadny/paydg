@@ -25,6 +25,8 @@ import { formatDuration } from "../src/utils/timeUtils";
 import ActiveShiftTimerCard from "@/src/components/ActiveShiftTimerCard";
 import Screen from "../src/components/Screen";
 
+import { Alert } from "react-native";
+
 const SHIFTS_KEY = "paydg_shifts_v1";
 
 type Shift = {
@@ -303,6 +305,14 @@ export default function Home() {
           <NavButton label={t("about_btn")} onPress={() => router.push("/about")} />
           <NavButton label="💾 Backup / Restore" onPress={() => router.push("/backup")} />
         </View>
+
+
+
+
+
+
+
+
 
         <Text style={{ color: "#6B7280", marginTop: 16, fontSize: 12 }}>
           {t("tip_defaults")}

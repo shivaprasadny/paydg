@@ -2,7 +2,7 @@
   "expo": {
     "name": "PayDg",
     "slug": "paydg",
-     "scheme": "paydg",
+    "scheme": "paydg",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -26,7 +26,9 @@
     "plugins": [
       "expo-router",
       "@react-native-community/datetimepicker",
-      "expo-localization"
+      "expo-localization",
+      "expo-asset",
+      "expo-sqlite"
     ],
     "extra": {
       "router": {},
