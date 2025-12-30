@@ -27,7 +27,14 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.shivaprasadnyc.paydg</string>
+          <string>paydg</string>
+          <string>com.shivaprasad.paydg</string>
+        </array>
+      </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>exp+paydg</string>
         </array>
       </dict>
     </array>

@@ -250,7 +250,7 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { color: "white", fontSize: 28, fontWeight: "900" },
-  subTitle: { color: "#B8C0CC", marginTop: -6 },
+  subTitle: { color: "#B8C0CC", marginTop: 6 },
 
   pickBtn: {
     paddingHorizontal: 12,

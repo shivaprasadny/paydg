@@ -15,6 +15,21 @@ const LANG_KEY = "paydg_lang_v1";
 
 const i18n = new I18n({
   en: {
+
+
+    // ===== Profile =====
+  profile_create_title: "Create your profile",
+  profile_create_sub: "This helps personalize your app experience.",
+  name_placeholder: "Enter your name",
+  profile_tip: "You can change this later in Settings.",
+
+  
+
+
+  profile_created: "Your profile has been saved successfully.",
+
+ 
+  // keep existing keys below
     /* ---------------- Common ---------------- */
     home: "Home",
     hi: "Hi",

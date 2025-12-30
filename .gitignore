@@ -21,3 +21,19 @@ yarn-error.log*
 # Build
 dist/
 build/
+
+
+.DS_Store
+__MACOSX/
+
+
+ios/
+android/
+
+node_modules/
+
+.expo/
+
+.git/
+
+.DS_Store

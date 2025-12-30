@@ -15,6 +15,7 @@ import { autoCloseIfNeeded } from "../src/storage/repositories/punchRepo";
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
+  const [bootError, setBootError] = useState<string | null>(null);
 
   // ✅ Re-render titles when language changes
   useLang();
@@ -22,16 +23,16 @@ export default function RootLayout() {
   useEffect(() => {
     (async () => {
       try {
-        await Promise.resolve(migrate());
+        await initLanguage();
+        migrate();
         await autoCloseIfNeeded();
 
         await hydrateProfile();
         await hydrateWorkplaces();
         await hydrateRoles();
-
-        await initLanguage();
-      } catch (e) {
-        console.log("Boot error:", e);
+      } catch (e: any) {
+        console.error("Boot error:", e);
+        setBootError(e?.message ?? "Unknown startup error");
       } finally {
         setReady(true);
       }
@@ -41,10 +42,67 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       {!ready ? (
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0B0F1A" }}>
-          <Text style={{ color: "white" }}>{t("loading") ?? "Loading..."}</Text>
+        // ⏳ Loading
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#0B0F1A",
+            padding: 24,
+          }}
+        >
+          <Text style={{ color: "white", fontSize: 16 }}>
+            {t("loading") ?? "Loading..."}
+          </Text>
+        </View>
+      ) : bootError ? (
+        // ❌ Boot Error
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#0B0F1A",
+            padding: 24,
+          }}
+        >
+          <Text
+            style={{
+              color: "white",
+              fontSize: 20,
+              fontWeight: "800",
+              marginBottom: 12,
+              textAlign: "center",
+            }}
+          >
+            Something went wrong
+          </Text>
+
+          <Text
+            style={{
+              color: "#B8C0CC",
+              fontSize: 14,
+              textAlign: "center",
+              marginBottom: 16,
+              lineHeight: 20,
+            }}
+          >
+            The app couldn’t start properly.{"\n"}Please restart the app.
+          </Text>
+
+          <Text
+            style={{
+              color: "#6B7280",
+              fontSize: 12,
+              textAlign: "center",
+            }}
+          >
+            Error: {bootError}
+          </Text>
         </View>
       ) : (
+        // ✅ App Ready
         <Stack
           screenOptions={{
             headerShown: true,
@@ -76,8 +134,6 @@ export default function RootLayout() {
 
           <Stack.Screen name="day-details" options={{ title: t("day_details_title") }} />
           <Stack.Screen name="week-details" options={{ title: t("week_details_title") }} />
-
-          
         </Stack>
       )}
     </SafeAreaProvider>
