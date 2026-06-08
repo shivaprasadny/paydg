@@ -1,277 +1,494 @@
+// src/screens/about.tsx
+// ---------------------------------------------------------
+// PayDG — About Screen
+// ✅ Premium light PayDG theme
+// ✅ Updated support email
+// ✅ Share app, support email, optional Venmo support
+// ✅ Android-friendly bottom spacing
+// ---------------------------------------------------------
+
 import React from "react";
 import {
   Alert,
   Linking,
   Platform,
-  SafeAreaView,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import * as Sharing from "expo-sharing";
+
 import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
 import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
-const SUPPORT_EMAIL = "shivaprasadnyc@gmail.com";
+
+const SUPPORT_EMAIL = "shiva_prem14@hotmail.com";
 const VENMO_HANDLE = "@shivaprasad1991";
 const APP_VERSION = "1.0.0";
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+/* =========================
+   SMALL COMPONENTS
+========================= */
+
+function Card({
+  title,
+  children,
+  tone = "default",
+}: {
+  title: string;
+  children: React.ReactNode;
+  tone?: "default" | "success" | "warning";
+}) {
   return (
     <View
-      style={{
-        backgroundColor: "#111827",
-        borderWidth: 1,
-        borderColor: "#1F2937",
-        borderRadius: 14,
-        padding: 14,
-      }}
+      style={[
+        styles.card,
+        tone === "success" && styles.successCard,
+        tone === "warning" && styles.warningCard,
+      ]}
     >
-      <Text style={{ color: "white", fontSize: 16, fontWeight: "800", marginBottom: 8 }}>
+      <Text
+        style={[
+          styles.cardTitle,
+          tone === "success" && styles.successTitle,
+          tone === "warning" && styles.warningTitle,
+        ]}
+      >
         {title}
       </Text>
+
       {children}
     </View>
   );
 }
 
-function Bullet({ text }: { text: string }) {
-  return (
-    <Text style={{ color: "#B8C0CC", fontSize: 14, lineHeight: 20, marginTop: 6 }}>
-      {"• "}
-      {text}
-    </Text>
-  );
+function BodyText({ children }: { children: React.ReactNode }) {
+  return <Text style={styles.bodyText}>{children}</Text>;
 }
 
-function Button({
+function Bullet({ text }: { text: string }) {
+  return <Text style={styles.bullet}>• {text}</Text>;
+}
+
+function ActionButton({
   label,
   sub,
   onPress,
-  tone = "dark",
+  tone = "primary",
 }: {
   label: string;
   sub?: string;
   onPress: () => void;
-  tone?: "dark" | "green" | "red";
+  tone?: "primary" | "success" | "danger" | "light";
 }) {
-  const bg =
-    tone === "green" ? "#052e16" : tone === "red" ? "#3b0a0a" : "#0B0F1A";
-  const border =
-    tone === "green" ? "#16a34a" : tone === "red" ? "#ef4444" : "#1F2937";
-  const titleColor =
-    tone === "green" ? "#bbf7d0" : tone === "red" ? "#fecaca" : "white";
-  const subColor = tone === "green" ? "#86efac" : "#6B7280";
-
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={{
-        marginTop: 10,
-        backgroundColor: bg,
-        borderWidth: 1,
-        borderColor: border,
-        borderRadius: 12,
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-      }}
+      activeOpacity={0.85}
+      style={[
+        styles.actionBtn,
+        tone === "success" && styles.successBtn,
+        tone === "danger" && styles.dangerBtn,
+        tone === "light" && styles.lightBtn,
+      ]}
     >
-      <Text style={{ color: titleColor, fontSize: 15, fontWeight: "900" }}>{label}</Text>
-      {!!sub && (
-        <Text style={{ color: subColor, fontSize: 12, marginTop: 4, lineHeight: 16 }}>
+      <Text
+        style={[
+          styles.actionTitle,
+          tone === "light" && styles.lightBtnText,
+          tone === "danger" && styles.dangerBtnText,
+        ]}
+      >
+        {label}
+      </Text>
+
+      {sub ? (
+        <Text
+          style={[
+            styles.actionSub,
+            tone === "light" && styles.lightBtnSub,
+            tone === "danger" && styles.dangerBtnSub,
+          ]}
+        >
           {sub}
         </Text>
-      )}
+      ) : null}
     </TouchableOpacity>
   );
 }
 
+/* =========================
+   MAIN SCREEN
+========================= */
+
 export default function AboutScreen() {
-  useLang(); // ✅ rerender when language changes
+  // Re-render when language changes.
+  useLang();
 
   async function openEmail() {
     const subject = encodeURIComponent("PayDG - Feedback / Support");
     const body = encodeURIComponent(
       "Hi Shiva,\n\nI’m using PayDG and I have feedback / need help:\n\n1) Issue:\n2) Phone model (optional):\n3) Steps to reproduce:\n\nThanks!\n"
     );
+
     const url = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
 
     const can = await Linking.canOpenURL(url);
-    if (can) await Linking.openURL(url);
-    else Alert.alert("Email not available", "Please email manually: " + SUPPORT_EMAIL);
+
+    if (can) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert(
+        "Email not available",
+        `Please email manually: ${SUPPORT_EMAIL}`
+      );
+    }
   }
 
   async function openVenmo() {
-    // Venmo deep links are inconsistent across devices, so we do best-effort:
+    const handle = VENMO_HANDLE.replace("@", "");
+
     const venmoApp = `venmo://paycharge?recipients=${encodeURIComponent(
-      VENMO_HANDLE.replace("@", "")
+      handle
     )}`;
-    const venmoWeb = `https://venmo.com/${encodeURIComponent(VENMO_HANDLE.replace("@", ""))}`;
+
+    const venmoWeb = `https://venmo.com/${encodeURIComponent(handle)}`;
 
     const can = await Linking.canOpenURL(venmoApp);
     await Linking.openURL(can ? venmoApp : venmoWeb);
   }
 
   async function shareApp() {
-    // You can update this later when you have Play Store/App Store link.
     const message =
-      `PayDG (v${APP_VERSION}) — track shifts + tips in seconds.\n\n` +
+      `PayDG (v${APP_VERSION}) — track shifts, tips, and income in seconds.\n\n` +
       `If you work in restaurants, this makes life easier 😄\n\n` +
       `Made by Shiva Prasad.\n` +
       `Support: ${SUPPORT_EMAIL}`;
 
-    // Prefer native share sheet via expo-sharing when available
     const canShare = await Sharing.isAvailableAsync();
+
     if (!canShare) {
-      Alert.alert("Share", message);
+      Alert.alert("Share PayDG", message);
       return;
     }
 
-    // expo-sharing shares files; for text we can use the OS share via Linking (SMS) fallback.
-    // Easiest: copy via alert OR open SMS composer where possible.
-    // We'll do a simple cross-platform approach:
     const smsUrl =
       Platform.OS === "ios"
         ? `sms:&body=${encodeURIComponent(message)}`
         : `sms:?body=${encodeURIComponent(message)}`;
 
     const can = await Linking.canOpenURL(smsUrl);
-    if (can) await Linking.openURL(smsUrl);
-    else Alert.alert("Share this message", message);
+
+    if (can) {
+      await Linking.openURL(smsUrl);
+    } else {
+      Alert.alert("Share this message", message);
+    }
   }
 
   return (
-    <Screen>
-      {/* ✅ this replaces ScrollView padding */}
-      <View style={{ padding: 20, gap: 14, paddingBottom: 30 }}>
+    <Screen bg="#F6F7FB" pad={0}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+      >
         <ActiveShiftTimerCard />
 
-        {/* Title */}
-        <Text style={{ color: "white", fontSize: 28, fontWeight: "900" }}>
-          {t("about_title")}
-        </Text>
+        {/* Header */}
+        <View style={styles.heroCard}>
+          <Text style={styles.eyebrow}>ℹ️ About PayDG</Text>
 
-        <Text style={{ color: "#6B7280", fontSize: 12, marginTop: -10 }}>
-          Version {APP_VERSION}
-        </Text>
+          <Text style={styles.title}>{t("about_title") ?? "About PayDG"}</Text>
+
+          <Text style={styles.version}>Version {APP_VERSION}</Text>
+
+          <Text style={styles.heroText}>
+            PayDG helps restaurant workers track shifts, tips, and income
+            clearly — without messy notes or guessing.
+          </Text>
+        </View>
 
         {/* What the app does */}
-        <Card title={t("about_what_title")}>
-          <Text style={{ color: "#B8C0CC", fontSize: 14, lineHeight: 20 }}>
-            {t("about_what_body")}
-          </Text>
+        <Card title={t("about_what_title") ?? "💼 What PayDG does"}>
+          <BodyText>
+            {t("about_what_body") ??
+              "PayDG helps you understand your real earnings across shifts, workplaces, roles, tips, and hours."}
+          </BodyText>
 
-          <View style={{ height: 8 }} />
+          <View style={styles.bulletBlock}>
+            <Bullet text="Track shifts, hours, breaks, and tips." />
+            <Bullet text="Organize income by workplace and role." />
+            <Bullet text="Use History to find and edit past shifts quickly." />
+            <Bullet text="Use Stats to see week, month, and year trends." />
+          </View>
 
-          <Bullet text="Track your shifts, hours, breaks, and tips — without messy notes." />
-          <Bullet text="Use Workplaces + Roles to keep everything organized." />
-          <Bullet text="Entries (weekly) + History (timeline) helps you find anything fast." />
-          <Bullet text="Stats shows trends so you know which days/roles pay best." />
-
-          <Text style={{ color: "#6B7280", fontSize: 12, marginTop: 12, lineHeight: 18 }}>
-            Tip: The best tracking system is the one you actually use — PayDG is built to be fast.
-          </Text>
+          <View style={styles.tipBox}>
+            <Text style={styles.tipText}>
+              💡 The best tracking system is the one you actually use. PayDG is
+              built to be fast.
+            </Text>
+          </View>
         </Card>
 
         {/* Fun facts */}
-        <Card title="🎉 Fun Facts (yes, it matters)">
-          <Bullet text="A lot of restaurant workers forget small cash tips — those add up fast over a month." />
-          <Bullet text="Tracking even 5 shifts can reveal patterns like “weekends earn more” or “this role pays better”." />
-          <Bullet text="If you ever argue with your own memory about money… welcome to the club 😄" />
+        <Card title="🎉 Fun facts" tone="success">
+          <Bullet text="Small cash tips can add up to hundreds over a month." />
+          <Bullet text="Tracking even 5 shifts can reveal earning patterns." />
+          <Bullet text="If you ever argue with your own memory about money, PayDG is for you 😄" />
         </Card>
 
-        {/* Quick Guide CTA */}
-        <Card title="📘 Want to learn everything fast?">
-          <Text style={{ color: "#B8C0CC", fontSize: 14, lineHeight: 20 }}>
-            Use the Quick Guide screen to get the best out of PayDG (setup tips + best workflow).
-          </Text>
+        {/* Quick guide CTA */}
+        <Card title="📘 Want to learn it fast?">
+          <BodyText>
+            Use the Quick Guide screen to understand the best PayDG workflow:
+            setup, adding shifts, punch in/out, history, and stats.
+          </BodyText>
 
-          <Text style={{ color: "#6B7280", fontSize: 12, marginTop: 10, lineHeight: 18 }}>
-            If something feels confusing, email me — I’ll help.
-          </Text>
+          <View style={styles.tipBox}>
+            <Text style={styles.tipText}>
+              🔎 If something feels confusing, email me. I’ll use your feedback
+              to improve the app.
+            </Text>
+          </View>
         </Card>
 
         {/* Developer note */}
-        <Card title="👨‍🍳 Note from the Developer">
-          <Text style={{ color: "#B8C0CC", fontSize: 14, lineHeight: 20 }}>
-            Hi, I’m Shiva Prasad. I built PayDG to help restaurant workers because I worked in restaurants
-            for many years. I know how stressful it is to track tips and hours — so I wanted a simple app
-            that makes it fast, clear, and reliable.
-          </Text>
+        <Card title="👨‍🍳 Note from the developer">
+          <BodyText>
+            Hi, I’m Shiva Prasad. I built PayDG to help restaurant workers
+            because I worked in restaurants for many years. I know how stressful
+            it can be to track tips and hours.
+          </BodyText>
 
-          <Text style={{ color: "#B8C0CC", fontSize: 14, lineHeight: 20, marginTop: 10 }}>
-            Now I work as a developer and build apps for big clients — but PayDG is personal, and I want it
-            to stay helpful for the restaurant community.
-          </Text>
+          <View style={{ height: 10 }} />
+
+          <BodyText>
+            Now I work as a developer and build apps for clients, but PayDG is
+            personal. I want it to stay simple, fast, and helpful for the
+            restaurant community.
+          </BodyText>
         </Card>
 
         {/* Share */}
-        <Card title="📣 Help me grow PayDG">
-          <Text style={{ color: "#B8C0CC", fontSize: 14, lineHeight: 20 }}>
-            If PayDG helps you, please share it with a coworker or friend.
-            That’s the biggest support you can give.
-          </Text>
+        <Card title="📣 Help PayDG grow">
+          <BodyText>
+            If PayDG helps you, please share it with a coworker or friend. That
+            is the biggest support you can give.
+          </BodyText>
 
-          <Button
-            label="Share PayDG with a friend"
-            sub="Opens a message you can send in SMS/WhatsApp."
+          <ActionButton
+            label="Share PayDG"
+            sub="Opens a message you can send to a friend."
             onPress={shareApp}
-            tone="green"
+            tone="success"
           />
         </Card>
 
-        {/* Support / feedback */}
-        <Card title="💬 Feedback & Customer Service">
-          <Text style={{ color: "#B8C0CC", fontSize: 14, lineHeight: 20 }}>
-            For feedback, bugs, feature requests, or customer service:
-          </Text>
+        {/* Support */}
+        <Card title="💬 Feedback & customer service">
+          <BodyText>
+            For feedback, bugs, feature requests, or customer service, email me
+            here:
+          </BodyText>
 
-          <Button
+          <ActionButton
             label={SUPPORT_EMAIL}
             sub="Tap to send an email"
             onPress={openEmail}
-            tone="dark"
+            tone="primary"
           />
         </Card>
 
         {/* Donations */}
-        <Card title="🙏 Support the Project (Optional)">
-          <Text style={{ color: "#B8C0CC", fontSize: 14, lineHeight: 20 }}>
-            If PayDG saves you time or helps you understand your money better, consider supporting development.
-            Every donation helps me keep improving the app and adding features (without ads).
-          </Text>
+        <Card title="🙏 Support the project" tone="warning">
+          <BodyText>
+            If PayDG saves you time or helps you understand your money better,
+            you can optionally support development.
+          </BodyText>
 
-          <Button
+          <ActionButton
             label={`Donate on Venmo: ${VENMO_HANDLE}`}
-            sub="Thank you — seriously. This keeps the project alive ❤️"
+            sub="No pressure — sharing the app also helps a lot ❤️"
             onPress={openVenmo}
-            tone="green"
+            tone="success"
           />
-
-          <Text style={{ color: "#6B7280", fontSize: 12, marginTop: 10, lineHeight: 18 }}>
-            No pressure — even sharing the app helps a lot.
-          </Text>
         </Card>
 
         {/* Updates */}
-        <Card title={t("about_updates_title")}>
-          <Text style={{ color: "#B8C0CC", fontSize: 14, lineHeight: 20 }}>
-            • Workplaces + Roles{"\n"}
-            • Defaults per workplace/role{"\n"}
-            • Weekly/monthly stats{"\n"}
-            • Punch In/Out + auto-close safety{"\n"}
-            • English / Español{"\n"}
-            • Backup / Restore
-          </Text>
+        <Card title={t("about_updates_title") ?? "🚀 What’s included"}>
+          <Bullet text="Workplaces and Roles" />
+          <Bullet text="Defaults per workplace or role" />
+          <Bullet text="Weekly, monthly, and yearly stats" />
+          <Bullet text="Punch In/Out with auto-close safety" />
+          <Bullet text="English / Español support" />
+          <Bullet text="Backup / Restore" />
         </Card>
 
-        {/* Footer tip */}
-        <Text style={{ color: "#6B7280", fontSize: 12 }}>
-          {t("about_tip")}
+        <Text style={styles.footerText}>
+          {t("about_tip") ??
+            "Thanks for using PayDG. Keep tracking consistently 🙌"}
         </Text>
-      </View></Screen>
-    
+      </ScrollView>
+    </Screen>
   );
 }
+
+/* =========================
+   PAYDG PREMIUM LIGHT THEME
+========================= */
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 18,
+    paddingBottom: 52,
+    gap: 14,
+  },
+
+  heroCard: {
+    backgroundColor: "#1E293B",
+    borderRadius: 28,
+    padding: 22,
+  },
+  eyebrow: {
+    color: "#CBD5E1",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  title: {
+    color: "#FFFFFF",
+    fontSize: 34,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  version: {
+    color: "#D97706",
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: 6,
+  },
+  heroText: {
+    color: "#E2E8F0",
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: "700",
+    marginTop: 10,
+  },
+
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  cardTitle: {
+    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 8,
+  },
+  bodyText: {
+    color: "#334155",
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: "700",
+  },
+  bulletBlock: {
+    marginTop: 8,
+  },
+  bullet: {
+    color: "#334155",
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+
+  successCard: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#86EFAC",
+  },
+  successTitle: {
+    color: "#15803D",
+  },
+  warningCard: {
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FDBA74",
+  },
+  warningTitle: {
+    color: "#92400E",
+  },
+
+  tipBox: {
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+    borderRadius: 18,
+    padding: 12,
+    marginTop: 12,
+  },
+  tipText: {
+    color: "#92400E",
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "800",
+  },
+
+  actionBtn: {
+    marginTop: 12,
+    backgroundColor: "#1E293B",
+    borderWidth: 1,
+    borderColor: "#1E293B",
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  successBtn: {
+    backgroundColor: "#16A34A",
+    borderColor: "#16A34A",
+  },
+  dangerBtn: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+  },
+  lightBtn: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E8F0",
+  },
+  actionTitle: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  actionSub: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+    fontWeight: "700",
+  },
+  lightBtnText: {
+    color: "#1E293B",
+  },
+  lightBtnSub: {
+    color: "#64748B",
+  },
+  dangerBtnText: {
+    color: "#B91C1C",
+  },
+  dangerBtnSub: {
+    color: "#991B1B",
+  },
+
+  footerText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    fontWeight: "700",
+    marginTop: 4,
+  },
+});

@@ -1,18 +1,15 @@
 // src/screens/stats.tsx
 // ---------------------------------------------------------
-// PayDG — Stats (Phase 1)
-// ✅ Weekly (Mon–Sun) + Month + Year
-// ✅ Jump to any week/month/year using date picker (no endless buttons)
-// ✅ Workplace filter (All / one workplace)
-// ✅ Drill-down: View shifts (week details)
-// ✅ NEW: Up/Down arrows + % change vs previous period
+// PayDG — Stats Screen
+// Weekly = Monday to Sunday
+// Shows Week / Month / Year stats
+// Includes workplace filter and previous-period comparison
 // ---------------------------------------------------------
 
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,43 +25,40 @@ import Screen from "../components/Screen";
 
 type Shift = {
   id: string;
-
   workplaceId: string;
   workplaceName?: string;
-
-  isoDate: string; // YYYY-MM-DD
+  isoDate: string;
   startISO: string;
   endISO: string;
-
   unpaidBreak: boolean;
   breakMinutes: number;
-
   hourlyWage: number;
   cashTips: number;
   creditTips: number;
-
   workedMinutes: number;
   workedHours: number;
-
   hourlyPay: number;
   totalTips: number;
   totalEarned: number;
-
   note?: string;
   createdAt: string;
 };
 
+type Mode = "week" | "month" | "year";
+
 const STORAGE_KEY = "paydg_shifts_v1";
 
-/* =========================================================
-   Date helpers (week starts Monday, ends Sunday)
-========================================================= */
+/* =========================
+   DATE HELPERS
+========================= */
 
 function startOfWeekMonday(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
-  const day = x.getDay(); // 0 Sun..6 Sat
-  const diff = (day === 0 ? -6 : 1) - day; // to Monday
+
+  const day = x.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+
   x.setDate(x.getDate() + diff);
   return x;
 }
@@ -72,8 +66,10 @@ function startOfWeekMonday(d: Date) {
 function endOfWeekSunday(d: Date) {
   const start = startOfWeekMonday(d);
   const end = new Date(start);
+
   end.setDate(end.getDate() + 6);
   end.setHours(23, 59, 59, 999);
+
   return end;
 }
 
@@ -102,7 +98,6 @@ function endOfYear(d: Date) {
 }
 
 function fmtRange(a: Date, b: Date) {
-  // Example: Dec 1 – Dec 7, 2025
   const sameYear = a.getFullYear() === b.getFullYear();
   const sameMonth = a.getMonth() === b.getMonth();
 
@@ -125,18 +120,14 @@ function fmtMonth(d: Date) {
   return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
-function fmtYear(d: Date) {
-  return String(d.getFullYear());
-}
-
 function fmtMoney(n: number) {
   const val = Number.isFinite(n) ? n : 0;
   return `$${val.toFixed(2)}`;
 }
 
-/* =========================================================
-   Totals helper
-========================================================= */
+/* =========================
+   TOTALS / CHANGE HELPERS
+========================= */
 
 function computeTotals(shifts: Shift[]) {
   const workedMinutes = shifts.reduce((s, x) => s + (x.workedMinutes || 0), 0);
@@ -144,8 +135,6 @@ function computeTotals(shifts: Shift[]) {
 
   const cash = shifts.reduce((s, x) => s + (x.cashTips || 0), 0);
   const card = shifts.reduce((s, x) => s + (x.creditTips || 0), 0);
-  const tips = Number((cash + card).toFixed(2));
-
   const wage = shifts.reduce((s, x) => s + (x.hourlyPay || 0), 0);
   const total = shifts.reduce((s, x) => s + (x.totalEarned || 0), 0);
 
@@ -154,44 +143,36 @@ function computeTotals(shifts: Shift[]) {
     hours,
     cash: Number(cash.toFixed(2)),
     card: Number(card.toFixed(2)),
-    tips,
+    tips: Number((cash + card).toFixed(2)),
     wage: Number(wage.toFixed(2)),
     total: Number(total.toFixed(2)),
   };
 }
 
-/* =========================================================
-   Change (arrow + %)
-========================================================= */
-
 function calcChangePct(current: number, prev: number) {
   const cur = Number.isFinite(current) ? current : 0;
   const p = Number.isFinite(prev) ? prev : 0;
 
-  // If previous is 0, percentage is not meaningful
   if (p === 0) {
     if (cur === 0) return { dir: "flat" as const, pctText: "0.0%" };
-    return { dir: "up" as const, pctText: "—" };
+    return { dir: "up" as const, pctText: "New" };
   }
 
   const diff = cur - p;
   const pct = (diff / p) * 100;
+
   const dir =
     diff > 0 ? ("up" as const) : diff < 0 ? ("down" as const) : ("flat" as const);
 
   return { dir, pctText: `${Math.abs(pct).toFixed(1)}%` };
 }
 
+/* =========================
+   SMALL COMPONENTS
+========================= */
+
 function ChangeBadge({ current, prev }: { current: number; prev: number }) {
   const { dir, pctText } = calcChangePct(current, prev);
-
-  if (dir === "flat") {
-    return (
-      <View style={[styles.changePill, styles.changeFlat]}>
-        <Text style={[styles.changeText, styles.changeFlatText]}>— {pctText}</Text>
-      </View>
-    );
-  }
 
   if (dir === "up") {
     return (
@@ -201,100 +182,158 @@ function ChangeBadge({ current, prev }: { current: number; prev: number }) {
     );
   }
 
+  if (dir === "down") {
+    return (
+      <View style={[styles.changePill, styles.changeDown]}>
+        <Text style={[styles.changeText, styles.changeDownText]}>↓ {pctText}</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.changePill, styles.changeDown]}>
-      <Text style={[styles.changeText, styles.changeDownText]}>↓ {pctText}</Text>
+    <View style={[styles.changePill, styles.changeFlat]}>
+      <Text style={[styles.changeText, styles.changeFlatText]}>— {pctText}</Text>
     </View>
   );
 }
 
-/* =========================================================
-   Screen
-========================================================= */
+function TotalRow({
+  label,
+  value,
+  current,
+  prev,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  current: number;
+  prev: number;
+  highlight?: boolean;
+}) {
+  return (
+    <View style={[styles.totalRow, highlight && styles.totalRowHighlight]}>
+      <View>
+        <Text style={[styles.totalLabel, highlight && styles.totalLabelHighlight]}>
+          {label}
+        </Text>
+        <Text style={styles.compareText}>vs previous period</Text>
+      </View>
 
-type Mode = "week" | "month" | "year";
+      <View style={styles.totalRight}>
+        <Text style={[styles.totalValue, highlight && styles.totalValueHighlight]}>
+          {value}
+        </Text>
+        <ChangeBadge current={current} prev={prev} />
+      </View>
+    </View>
+  );
+}
+
+function ModeTab({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={[styles.tab, active && styles.tabActive]}>
+      <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/* =========================
+   MAIN SCREEN
+========================= */
 
 export default function StatsScreen() {
   const router = useRouter();
+
   const workplaces = useMemo(() => listWorkplaces(), []);
   const [allShifts, setAllShifts] = useState<Shift[]>([]);
 
-  // Mode tabs
   const [mode, setMode] = useState<Mode>("week");
-
-  // “Anchor date” = controls which week/month/year we’re looking at
   const [anchorDate, setAnchorDate] = useState<Date>(new Date());
 
-  // Pickers
-  const [pickerOpen, setPickerOpen] = useState<null | "week" | "month" | "year">(null);
-
-  // Workplace filter
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [workplaceId, setWorkplaceId] = useState<string>("ALL");
   const [workplaceModal, setWorkplaceModal] = useState(false);
 
-  // Load shifts whenever screen is focused
   useFocusEffect(
     useCallback(() => {
-      (async () => {
+      async function loadStats() {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         const arr: Shift[] = raw ? JSON.parse(raw) : [];
         setAllShifts(arr);
-      })();
+      }
+
+      loadStats();
     }, [])
   );
 
-  // Date window based on mode
   const window = useMemo(() => {
     if (mode === "week") {
       const start = startOfWeekMonday(anchorDate);
       const end = endOfWeekSunday(anchorDate);
       return { start, end, label: fmtRange(start, end) };
     }
+
     if (mode === "month") {
       const start = startOfMonth(anchorDate);
       const end = endOfMonth(anchorDate);
       return { start, end, label: fmtMonth(anchorDate) };
     }
+
     const start = startOfYear(anchorDate);
     const end = endOfYear(anchorDate);
-    return { start, end, label: fmtYear(anchorDate) };
+
+    return {
+      start,
+      end,
+      label: String(anchorDate.getFullYear()),
+    };
   }, [mode, anchorDate]);
 
-  // Previous period window (for arrows)
   const prevWindow = useMemo(() => {
     if (mode === "week") {
       const start = startOfWeekMonday(anchorDate);
       const end = endOfWeekSunday(anchorDate);
-      const pStart = new Date(start);
-      const pEnd = new Date(end);
-      pStart.setDate(pStart.getDate() - 7);
-      pEnd.setDate(pEnd.getDate() - 7);
-      return { start: pStart, end: pEnd };
+
+      start.setDate(start.getDate() - 7);
+      end.setDate(end.getDate() - 7);
+
+      return { start, end };
     }
 
     if (mode === "month") {
       const d = new Date(anchorDate.getFullYear(), anchorDate.getMonth() - 1, 15);
-      const start = startOfMonth(d);
-      const end = endOfMonth(d);
-      return { start, end };
+      return {
+        start: startOfMonth(d),
+        end: endOfMonth(d),
+      };
     }
 
-    // year
     const d = new Date(anchorDate.getFullYear() - 1, 0, 1);
-    const start = startOfYear(d);
-    const end = endOfYear(d);
-    return { start, end };
+
+    return {
+      start: startOfYear(d),
+      end: endOfYear(d),
+    };
   }, [mode, anchorDate]);
 
-  // Filter shifts by window + workplace
   const filtered = useMemo(() => {
     const min = window.start.getTime();
     const max = window.end.getTime();
 
     return allShifts.filter((s) => {
       const t = new Date(s.startISO).getTime();
+
       if (t < min || t > max) return false;
       if (workplaceId !== "ALL" && s.workplaceId !== workplaceId) return false;
+
       return true;
     });
   }, [allShifts, window.start, window.end, workplaceId]);
@@ -305,8 +344,10 @@ export default function StatsScreen() {
 
     return allShifts.filter((s) => {
       const t = new Date(s.startISO).getTime();
+
       if (t < min || t > max) return false;
       if (workplaceId !== "ALL" && s.workplaceId !== workplaceId) return false;
+
       return true;
     });
   }, [allShifts, prevWindow.start, prevWindow.end, workplaceId]);
@@ -316,69 +357,65 @@ export default function StatsScreen() {
 
   const workplaceLabel = useMemo(() => {
     if (workplaceId === "ALL") return "All workplaces";
+
     const w = workplaces.find((x: any) => x.id === workplaceId);
     return w?.name ?? "Workplace";
   }, [workplaceId, workplaces]);
 
-  function openPickerForCurrentMode() {
-    if (mode === "week") setPickerOpen("week");
-    if (mode === "month") setPickerOpen("month");
-    if (mode === "year") setPickerOpen("year");
-  }
-
   return (
-      <Screen bg="#f7f7f7" pad={16}>
-    <ActiveShiftTimerCard />
+    <Screen bg="#F6F7FB" pad={0}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+      >
+        <ActiveShiftTimerCard />
 
-    {/* Header */}
-    <View style={styles.headerRow}>
-      <Text style={styles.title}>Stats</Text>
-      <Pressable style={styles.filterBtn} onPress={() => setWorkplaceModal(true)}>
-        <Text style={styles.filterText}>{workplaceLabel}</Text>
-      </Pressable>
-    </View>
-
-        {/* Tabs */}
-        <View style={styles.tabs}>
-          <Pressable
-            onPress={() => setMode("week")}
-            style={[styles.tab, mode === "week" && styles.tabActive]}
-          >
-            <Text style={[styles.tabText, mode === "week" && styles.tabTextActive]}>Week</Text>
-          </Pressable>
+        {/* Header */}
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.eyebrow}>PayDG analytics</Text>
+            <Text style={styles.title}>Stats</Text>
+          </View>
 
           <Pressable
-            onPress={() => setMode("month")}
-            style={[styles.tab, mode === "month" && styles.tabActive]}
+            style={styles.filterBtn}
+            onPress={() => setWorkplaceModal(true)}
           >
-            <Text style={[styles.tabText, mode === "month" && styles.tabTextActive]}>Month</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setMode("year")}
-            style={[styles.tab, mode === "year" && styles.tabActive]}
-          >
-            <Text style={[styles.tabText, mode === "year" && styles.tabTextActive]}>Year</Text>
+            <Text style={styles.filterText} numberOfLines={1}>
+              {workplaceLabel}
+            </Text>
           </Pressable>
         </View>
 
-        {/* Range Picker Row */}
+        {/* Mode Tabs */}
+        <View style={styles.tabs}>
+          <ModeTab label="Week" active={mode === "week"} onPress={() => setMode("week")} />
+          <ModeTab label="Month" active={mode === "month"} onPress={() => setMode("month")} />
+          <ModeTab label="Year" active={mode === "year"} onPress={() => setMode("year")} />
+        </View>
+
+        {/* Selected Range */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Selected</Text>
+          <Text style={styles.cardTitle}>Selected period</Text>
 
           <View style={styles.rowBetween}>
-            <Text style={styles.rangeText}>{window.label}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rangeText}>{window.label}</Text>
+              <Text style={styles.helper}>
+                {mode === "week"
+                  ? "Week starts Monday and ends Sunday."
+                  : "Pick any date inside the period."}
+              </Text>
+            </View>
 
-            <Pressable style={styles.pickBtn} onPress={openPickerForCurrentMode}>
+            <Pressable style={styles.pickBtn} onPress={() => setPickerOpen(true)}>
               <Text style={styles.pickBtnText}>Pick</Text>
             </Pressable>
           </View>
 
-          <Text style={styles.helper}>Week starts Monday and ends Sunday.</Text>
-
           {mode === "week" && (
             <Pressable
-              style={[styles.pickBtn, { marginTop: 10, alignSelf: "flex-start" }]}
+              style={styles.viewShiftsBtn}
               onPress={() =>
                 router.push({
                   pathname: "/week-details",
@@ -391,173 +428,213 @@ export default function StatsScreen() {
                 })
               }
             >
-              <Text style={styles.pickBtnText}>View shifts →</Text>
+              <Text style={styles.viewShiftsText}>View shifts →</Text>
             </Pressable>
           )}
         </View>
 
-   {/* Totals */}
-<View style={styles.card}>
-  <Text style={styles.cardTitle}>Totals</Text>
+        {/* Main Summary Card */}
+        <View style={styles.heroCard}>
+          <Text style={styles.heroLabel}>Total earned</Text>
+          <Text style={styles.heroAmount}>{fmtMoney(totals.total)}</Text>
 
-  <View style={styles.totalRow}>
-    <Text style={styles.totalLabel}>Shifts</Text>
-    <Text style={styles.totalValue}>{totals.shiftsCount}</Text>
-  </View>
+          <View style={styles.heroMetaRow}>
+            <Text style={styles.heroMeta}>{totals.shiftsCount} shifts</Text>
+            <Text style={styles.heroMeta}>{totals.hours.toFixed(2)}h</Text>
+            <ChangeBadge current={totals.total} prev={prevTotals.total} />
+          </View>
+        </View>
 
-  {/* Hours + change */}
-  <View style={[styles.totalRow, { alignItems: "flex-start" }]}>
-    <Text style={[styles.totalLabel, { marginTop: 4 }]}>Hours</Text>
-    <View style={{ alignItems: "flex-end", gap: 6 }}>
-      <Text style={styles.totalValue}>{totals.hours.toFixed(2)}h</Text>
-      <ChangeBadge current={totals.hours} prev={prevTotals.hours} />
-    </View>
-  </View>
+        {/* Totals */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Breakdown</Text>
 
-  {/* Hourly pay + change */}
-  <View style={[styles.totalRow, { alignItems: "flex-start" }]}>
-    <Text style={[styles.totalLabel, { marginTop: 4 }]}>Hourly pay</Text>
-    <View style={{ alignItems: "flex-end", gap: 6 }}>
-      <Text style={styles.totalValue}>{fmtMoney(totals.wage)}</Text>
-      <ChangeBadge current={totals.wage} prev={prevTotals.wage} />
-    </View>
-  </View>
+          <TotalRow
+            label="Hours"
+            value={`${totals.hours.toFixed(2)}h`}
+            current={totals.hours}
+            prev={prevTotals.hours}
+          />
 
-  {/* Cash tips + change (optional but nice) */}
-  <View style={[styles.totalRow, { alignItems: "flex-start" }]}>
-    <Text style={[styles.totalLabel, { marginTop: 4 }]}>Cash tips</Text>
-    <View style={{ alignItems: "flex-end", gap: 6 }}>
-      <Text style={styles.totalValue}>{fmtMoney(totals.cash)}</Text>
-      <ChangeBadge current={totals.cash} prev={prevTotals.cash} />
-    </View>
-  </View>
+          <TotalRow
+            label="Hourly pay"
+            value={fmtMoney(totals.wage)}
+            current={totals.wage}
+            prev={prevTotals.wage}
+          />
 
-  {/* Card tips + change (optional but nice) */}
-  <View style={[styles.totalRow, { alignItems: "flex-start" }]}>
-    <Text style={[styles.totalLabel, { marginTop: 4 }]}>Card tips</Text>
-    <View style={{ alignItems: "flex-end", gap: 6 }}>
-      <Text style={styles.totalValue}>{fmtMoney(totals.card)}</Text>
-      <ChangeBadge current={totals.card} prev={prevTotals.card} />
-    </View>
-  </View>
+          <TotalRow
+            label="Cash tips"
+            value={fmtMoney(totals.cash)}
+            current={totals.cash}
+            prev={prevTotals.cash}
+          />
 
-  {/* Total tips + change */}
-  <View style={[styles.totalRow, { alignItems: "flex-start" }]}>
-    <Text style={[styles.totalLabel, { marginTop: 4 }]}>Total tips</Text>
-    <View style={{ alignItems: "flex-end", gap: 6 }}>
-      <Text style={styles.totalValue}>{fmtMoney(totals.tips)}</Text>
-      <ChangeBadge current={totals.tips} prev={prevTotals.tips} />
-    </View>
-  </View>
+          <TotalRow
+            label="Card tips"
+            value={fmtMoney(totals.card)}
+            current={totals.card}
+            prev={prevTotals.card}
+          />
 
-  {/* Total earned + change (already had this — keep it) */}
-  <View style={[styles.totalRow, { marginTop: 8, alignItems: "flex-start" }]}>
-    <Text style={[styles.totalLabel, { fontWeight: "900", marginTop: 4 }]}>
-      Total earned
-    </Text>
+          <TotalRow
+            label="Total tips"
+            value={fmtMoney(totals.tips)}
+            current={totals.tips}
+            prev={prevTotals.tips}
+          />
 
-    <View style={{ alignItems: "flex-end", gap: 6 }}>
-      <Text style={[styles.totalValue, { fontSize: 18 }]}>
-        {fmtMoney(totals.total)}
-      </Text>
+          <TotalRow
+            label="Total earned"
+            value={fmtMoney(totals.total)}
+            current={totals.total}
+            prev={prevTotals.total}
+            highlight
+          />
+        </View>
 
-      <ChangeBadge current={totals.total} prev={prevTotals.total} />
-    </View>
-  </View>
-</View>
+        <Text style={styles.bottomNote}>
+          Changes compare this selected period with the previous same period.
+        </Text>
+      </ScrollView>
 
+      {/* Date Picker */}
+      <DateTimePickerModal
+        isVisible={pickerOpen}
+        mode="date"
+        date={anchorDate}
+        onConfirm={(d) => {
+          setAnchorDate(d);
+          setPickerOpen(false);
+        }}
+        onCancel={() => setPickerOpen(false)}
+      />
 
-        {/* -------------------- Date picker modal -------------------- */}
-        <DateTimePickerModal
-          isVisible={pickerOpen !== null}
-          mode="date"
-          date={anchorDate}
-          onConfirm={(d) => {
-            setAnchorDate(d);
-            setPickerOpen(null);
-          }}
-          onCancel={() => setPickerOpen(null)}
-        />
+      {/* Workplace Filter Modal */}
+      <Modal transparent visible={workplaceModal} animationType="fade">
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setWorkplaceModal(false)}
+        >
+          <Pressable style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Filter by workplace</Text>
 
-        {/* -------------------- Workplace modal -------------------- */}
-        <Modal transparent visible={workplaceModal} animationType="fade">
-          <Pressable style={styles.modalOverlay} onPress={() => setWorkplaceModal(false)}>
-            <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Filter by workplace</Text>
+            <Pressable
+              onPress={() => {
+                setWorkplaceId("ALL");
+                setWorkplaceModal(false);
+              }}
+              style={[
+                styles.modalItem,
+                workplaceId === "ALL" && styles.modalItemActive,
+              ]}
+            >
+              <Text style={styles.modalItemText}>All workplaces</Text>
+            </Pressable>
 
-              <Pressable
-                onPress={() => {
-                  setWorkplaceId("ALL");
-                  setWorkplaceModal(false);
-                }}
-                style={[styles.modalItem, workplaceId === "ALL" && styles.modalItemActive]}
-              >
-                <Text style={styles.modalItemText}>All workplaces</Text>
-              </Pressable>
+            {workplaces.map((w: any) => {
+              const active = w.id === workplaceId;
 
-              {workplaces.map((w: any) => {
-                const active = w.id === workplaceId;
-                return (
-                  <Pressable
-                    key={w.id}
-                    onPress={() => {
-                      setWorkplaceId(w.id);
-                      setWorkplaceModal(false);
-                    }}
-                    style={[styles.modalItem, active && styles.modalItemActive]}
-                  >
-                    <Text style={styles.modalItemText}>{w.name}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+              return (
+                <Pressable
+                  key={w.id}
+                  onPress={() => {
+                    setWorkplaceId(w.id);
+                    setWorkplaceModal(false);
+                  }}
+                  style={[styles.modalItem, active && styles.modalItemActive]}
+                >
+                  <Text style={styles.modalItemText}>{w.name}</Text>
+                </Pressable>
+              );
+            })}
           </Pressable>
-        </Modal>
-       </Screen>
+        </Pressable>
+      </Modal>
+    </Screen>
   );
 }
 
-/* =========================================================
-   Styles (matches Settings: light theme)
-========================================================= */
+/* =========================
+   PAYDG PREMIUM LIGHT THEME
+========================= */
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f7f7f7" },
-  container: { padding: 16, paddingBottom: 30, gap: 12 },
+  container: {
+    padding: 18,
+    paddingBottom: 42,
+    gap: 14,
+  },
 
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { fontSize: 28, fontWeight: "800" },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  eyebrow: {
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  title: {
+    color: "#0F172A",
+    fontSize: 32,
+    fontWeight: "900",
+    marginTop: 2,
+  },
 
   filterBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: "#111",
+    maxWidth: 160,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#1E293B",
   },
-  filterText: { color: "#fff", fontWeight: "800" },
+  filterText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+  },
 
   tabs: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
-    overflow: "hidden",
+    borderColor: "#E2E8F0",
+    padding: 4,
   },
-  tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
-  tabActive: { backgroundColor: "#111" },
-  tabText: { fontWeight: "800", opacity: 0.7 },
-  tabTextActive: { color: "#fff", opacity: 1 },
+  tab: {
+    flex: 1,
+    paddingVertical: 11,
+    alignItems: "center",
+    borderRadius: 14,
+  },
+  tabActive: {
+    backgroundColor: "#D97706",
+  },
+  tabText: {
+    color: "#64748B",
+    fontWeight: "900",
+  },
+  tabTextActive: {
+    color: "#FFFFFF",
+  },
 
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
-    gap: 10,
+    borderColor: "#E2E8F0",
   },
-  cardTitle: { fontSize: 16, fontWeight: "800" },
+  cardTitle: {
+    color: "#0F172A",
+    fontSize: 17,
+    fontWeight: "900",
+    marginBottom: 12,
+  },
 
   rowBetween: {
     flexDirection: "row",
@@ -565,66 +642,191 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  rangeText: { fontSize: 15, fontWeight: "800" },
-
-  helper: { fontSize: 12, opacity: 0.6 },
+  rangeText: {
+    color: "#0F172A",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  helper: {
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 5,
+  },
 
   pickBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#111",
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 999,
+    backgroundColor: "#1E293B",
   },
-  pickBtnText: { color: "#fff", fontWeight: "900" },
+  pickBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+  },
+  viewShiftsBtn: {
+    marginTop: 14,
+    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+  },
+  viewShiftsText: {
+    color: "#D97706",
+    fontWeight: "900",
+  },
 
-  totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  totalLabel: { fontSize: 13, opacity: 0.7 },
-  totalValue: { fontSize: 16, fontWeight: "900" },
+  heroCard: {
+    backgroundColor: "#1E293B",
+    borderRadius: 28,
+    padding: 22,
+  },
+  heroLabel: {
+    color: "#CBD5E1",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  heroAmount: {
+    color: "#FFFFFF",
+    fontSize: 42,
+    fontWeight: "900",
+    marginTop: 8,
+  },
+  heroMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 16,
+  },
+  heroMeta: {
+    color: "#E2E8F0",
+    fontSize: 13,
+    fontWeight: "800",
+  },
 
-  // ✅ Change badge styles (green up / red down)
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 14,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  totalRowHighlight: {
+    borderBottomWidth: 0,
+    marginTop: 4,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+  },
+  totalLabel: {
+    color: "#334155",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  totalLabelHighlight: {
+    color: "#92400E",
+  },
+  compareText: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  totalRight: {
+    alignItems: "flex-end",
+    gap: 7,
+  },
+  totalValue: {
+    color: "#0F172A",
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  totalValueHighlight: {
+    color: "#92400E",
+    fontSize: 19,
+  },
+
   changePill: {
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
   },
-  changeText: { fontSize: 12, fontWeight: "900" },
+  changeText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  changeUp: {
+    borderColor: "#86EFAC",
+    backgroundColor: "#ECFDF5",
+  },
+  changeUpText: {
+    color: "#15803D",
+  },
+  changeDown: {
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+  },
+  changeDownText: {
+    color: "#B91C1C",
+  },
+  changeFlat: {
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F8FAFC",
+  },
+  changeFlatText: {
+    color: "#475569",
+  },
 
-  changeUp: { borderColor: "#16a34a", backgroundColor: "#dcfce7" },
-  changeUpText: { color: "#166534" },
-
-  changeDown: { borderColor: "#dc2626", backgroundColor: "#fee2e2" },
-  changeDownText: { color: "#7f1d1d" },
-
-  changeFlat: { borderColor: "#e5e7eb", backgroundColor: "#f3f4f6" },
-  changeFlatText: { color: "#111827" },
+  bottomNote: {
+    color: "#94A3B8",
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 4,
+  },
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(15,23,42,0.45)",
     justifyContent: "center",
     padding: 18,
   },
   modalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "#e8e8e8",
+    borderColor: "#E2E8F0",
     gap: 10,
   },
-  modalTitle: { fontSize: 16, fontWeight: "900", marginBottom: 4 },
-
+  modalTitle: {
+    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
   modalItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
   },
   modalItemActive: {
-    borderColor: "#111",
-    backgroundColor: "#f2f2f2",
+    borderColor: "#D97706",
+    backgroundColor: "#FFF7ED",
   },
-  modalItemText: { fontWeight: "800" },
+  modalItemText: {
+    color: "#1E293B",
+    fontWeight: "900",
+  },
 });

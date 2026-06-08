@@ -1,208 +1,260 @@
+// src/screens/quick-guide.tsx
+// ---------------------------------------------------------
+// PayDG — Quick Guide
+// ✅ Premium light PayDG theme
+// ✅ Android-friendly bottom spacing
+// ✅ Friendly guide with emojis
+// ---------------------------------------------------------
+
 import React from "react";
-import { Text, View } from "react-native";
-import Screen from "../components/Screen";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
-/* ---------------- styles ---------------- */
+import Screen from "../components/Screen";
+import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 
-const card = {
-  backgroundColor: "#111827",
-  borderWidth: 1,
-  borderColor: "#1F2937",
-  borderRadius: 16,
-  padding: 14,
-} as const;
+function GuideCard({
+  title,
+  children,
+  tone = "default",
+}: {
+  title: string;
+  children: React.ReactNode;
+  tone?: "default" | "success" | "warning";
+}) {
+  return (
+    <View
+      style={[
+        styles.card,
+        tone === "success" && styles.successCard,
+        tone === "warning" && styles.warningCard,
+      ]}
+    >
+      <Text
+        style={[
+          styles.cardTitle,
+          tone === "success" && styles.successTitle,
+          tone === "warning" && styles.warningTitle,
+        ]}
+      >
+        {title}
+      </Text>
 
-const title = {
-  color: "white",
-  fontSize: 16,
-  fontWeight: "900",
-  marginBottom: 6,
-} as const;
+      <Text
+        style={[
+          styles.cardBody,
+          tone === "success" && styles.successBody,
+          tone === "warning" && styles.warningBody,
+        ]}
+      >
+        {children}
+      </Text>
+    </View>
+  );
+}
 
-const body = {
-  color: "#B8C0CC",
-  fontSize: 14,
-  lineHeight: 20,
-} as const;
-
-const bold = { color: "white", fontWeight: "900" } as const;
-
-const miniTip = {
-  marginTop: 10,
-  backgroundColor: "#0B0F1A",
-  borderWidth: 1,
-  borderColor: "#1F2937",
-  borderRadius: 14,
-  padding: 12,
-} as const;
-
-const miniTipText = {
-  color: "#9CA3AF",
-  fontSize: 12,
-  lineHeight: 16,
-} as const;
-
-const cardGreen = {
-  backgroundColor: "#052e16",
-  borderWidth: 1,
-  borderColor: "#16a34a",
-  borderRadius: 16,
-  padding: 14,
-} as const;
-
-const titleGreen = {
-  color: "#bbf7d0",
-  fontSize: 16,
-  fontWeight: "900",
-  marginBottom: 6,
-} as const;
-
-const bodyGreen = {
-  color: "#86efac",
-  fontSize: 13,
-  lineHeight: 18,
-} as const;
-
-const cardRed = {
-  backgroundColor: "#3b0a0a",
-  borderWidth: 1,
-  borderColor: "#ef4444",
-  borderRadius: 16,
-  padding: 14,
-} as const;
-
-const titleRed = {
-  color: "#fecaca",
-  fontSize: 16,
-  fontWeight: "900",
-  marginBottom: 6,
-} as const;
-
-const bodyRed = {
-  color: "#fca5a5",
-  fontSize: 13,
-  lineHeight: 18,
-} as const;
-
-const boldRed = { color: "#fff", fontWeight: "900" } as const;
-
-/* ---------------- screen ---------------- */
+function MiniTip({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={styles.miniTip}>
+      <Text style={styles.miniTipText}>{children}</Text>
+    </View>
+  );
+}
 
 export default function QuickGuideScreen() {
   return (
-    <Screen pad={20}>
+    <Screen bg="#F6F7FB" pad={0}>
       <Stack.Screen options={{ title: "Quick Guide" }} />
 
-
-      <View style={{ gap: 14, paddingBottom: 10 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+      >
         <ActiveShiftTimerCard />
 
         {/* Header */}
-        <Text style={{ color: "white", fontSize: 24, fontWeight: "800" }}>
-          📘 Quick Guide
-        </Text>
-        <Text style={{ color: "#B8C0CC", fontSize: 13, lineHeight: 19, marginTop: -4 }}>
-          PayDG helps restaurant workers track hours + tips fast — so your paycheck never feels like a mystery.
-        </Text>
-
-        {/* Fun Fact */}
-        <View style={cardGreen}>
-          <Text style={titleGreen}>🎯 Fun fact</Text>
-          <Text style={bodyGreen}>
-            Most tip workers underestimate weekly tips when they don’t track them daily.
-            Small tips add up fast — PayDG helps you see the real number. 😄
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>📘 PayDG help</Text>
+          <Text style={styles.title}>Quick Guide</Text>
+          <Text style={styles.subtitle}>
+            Track hours, tips, and income faster — so your paycheck never feels
+            like a mystery.
           </Text>
         </View>
 
-        {/* 1) Setup */}
-        <View style={card}>
-          <Text style={title}>✅ 1) Setup (takes 2 minutes)</Text>
-          <Text style={body}>
-            Do this once and the app becomes effortless:
-            {"\n\n"}• Add your <Text style={bold}>Workplace</Text> (example: Don Giovanni)
-            {"\n"}• Add your <Text style={bold}>Role</Text> (Server, Bartender, Runner)
-            {"\n"}• Optional: Set defaults in <Text style={bold}>Settings</Text> (hourly wage + break rules)
-          </Text>
+        <GuideCard title="🎯 Fun fact" tone="success">
+          Most tip workers underestimate weekly tips when they don’t track them
+          daily. Small tips add up fast — PayDG helps you see the real number.
+          😄
+        </GuideCard>
 
-          <View style={miniTip}>
-            <Text style={miniTipText}>
-              💡 Pro tip: If you work at multiple places, add them all now — your Stats will become much stronger later.
-            </Text>
-          </View>
-        </View>
+        <GuideCard title="✅ 1) Setup takes 2 minutes">
+          Do this once and the app becomes effortless:
+          {"\n\n"}• Add your workplace, for example Don Giovanni.
+          {"\n"}• Add your role, like Server, Bartender, or Runner.
+          {"\n"}• Optional: set defaults in Settings for hourly wage and break
+          rules.
+        </GuideCard>
 
-        {/* 2) Track shifts */}
-        <View style={card}>
-          <Text style={title}>⏱️ 2) Track your shifts (2 options)</Text>
+        <MiniTip>
+          💡 Pro tip: If you work at multiple places, add them all now. Your
+          Stats will become much stronger later.
+        </MiniTip>
 
-          <Text style={body}>
-            <Text style={bold}>Option A — Add Shift:</Text>
-            {"\n"}Best when you know your start/end time. You enter hours + tips manually.
-            {"\n\n"}
-            <Text style={bold}>Option B — Punch In/Out:</Text>
-            {"\n"}Best when you’re busy. One tap in, one tap out — PayDG calculates hours automatically.
-          </Text>
+        <GuideCard title="⏱️ 2) Track your shifts">
+          Option A — Add Shift:
+          {"\n"}Best when you already know your start and end time.
+          {"\n\n"}Option B — Punch In/Out:
+          {"\n"}Best when you’re busy. One tap in, one tap out — PayDG
+          calculates hours automatically.
+        </GuideCard>
 
-          <View style={miniTip}>
-            <Text style={miniTipText}>
-              🍕 Busy night? Use Punch. Chill shift? Use Add Shift. Both show up in History + Stats.
-            </Text>
-          </View>
-        </View>
+        <MiniTip>
+          🍕 Busy night? Use Punch. Chill shift? Use Add Shift. Both show up in
+          History and Stats.
+        </MiniTip>
 
-        {/* 3) Know your screens */}
-        <View style={card}>
-          <Text style={title}>📂 3) Know your screens</Text>
+        <GuideCard title="📂 3) Know your screens">
+          • Home: quick stats, recent entries, and shortcuts.
+          {"\n"}• Entries: your shifts in a clean list.
+          {"\n"}• History: full timeline of shifts. Tap to edit.
+          {"\n"}• Stats: week, month, and year trends.
+        </GuideCard>
 
-          <Text style={body}>
-            • <Text style={bold}>Home</Text>: quick stats + last shift + shortcuts{"\n"}
-            • <Text style={bold}>Entries</Text>: weekly view grouped by day (nice for planning){"\n"}
-            • <Text style={bold}>History</Text>: full timeline of shifts (tap to edit){"\n"}
-            • <Text style={bold}>Stats</Text>: trends by week/month/year (helps you improve)
-          </Text>
+        <MiniTip>
+          🔎 Tip: If you ever need to fix something, History is your control
+          center.
+        </MiniTip>
 
-          <View style={miniTip}>
-            <Text style={miniTipText}>
-              🔎 Tip: If you ever need to fix something, History is your “control center.”
-            </Text>
-          </View>
-        </View>
+        <GuideCard title="💰 4) Better data = better stats">
+          Want the app to feel smarter? These small habits make a big
+          difference:
+          {"\n\n"}• Always pick workplace and role.
+          {"\n"}• Split tips into cash and card.
+          {"\n"}• Add a note like “double shift”, “private party”, or “slow
+          night”.
+        </GuideCard>
 
-        {/* 4) Better data = better stats */}
-        <View style={card}>
-          <Text style={title}>💰 4) Get better stats (small habits)</Text>
+        <MiniTip>
+          ⭐ After 2–3 weeks of data, you’ll start seeing patterns like
+          “weekends pay more” or “this role earns better.”
+        </MiniTip>
 
-          <Text style={body}>
-            Want the app to feel “smart”? These tiny habits make a big difference:
-            {"\n\n"}• Always pick a <Text style={bold}>Workplace + Role</Text>
-            {"\n"}• Split tips into <Text style={bold}>Cash</Text> + <Text style={bold}>Card</Text>
-            {"\n"}• Add a quick note: “double shift”, “private party”, “slow night”
-          </Text>
+        <GuideCard title="🚨 5) Forgot to punch out?" tone="warning">
+          No stress. PayDG has safety auto-close so the timer won’t run forever.
+          {"\n\n"}You can always fix it in History → Edit Shift.
+        </GuideCard>
 
-          <View style={miniTip}>
-            <Text style={miniTipText}>
-              ⭐ After 2–3 weeks of data you’ll start seeing patterns like “Weekends pay more” or “This role earns better.”
-            </Text>
-          </View>
-        </View>
-
-        {/* 5) Forgot punch out */}
-        <View style={cardRed}>
-          <Text style={titleRed}>🚨 5) Forgot to punch out?</Text>
-
-          <Text style={bodyRed}>
-            No stress — PayDG has a safety auto-close so it won’t run forever.
-            {"\n\n"}You can always fix it in <Text style={boldRed}>History → Edit Shift</Text>.
+        <View style={styles.footerCard}>
+          <Text style={styles.footerText}>
+            🙌 The goal isn’t perfection — it’s consistency. Even rough tracking
+            makes your money clearer.
           </Text>
         </View>
-
-        {/* Footer */}
-        <Text style={{ color: "#6B7280", fontSize: 12, marginTop: 6, lineHeight: 16 }}>
-          Tip: The goal isn’t perfection — it’s consistency. Even “rough tracking” makes your money clearer. 🙌
-        </Text>
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 18,
+    paddingBottom: 48,
+    gap: 14,
+  },
+
+  header: {
+    backgroundColor: "#1E293B",
+    borderRadius: 28,
+    padding: 22,
+  },
+  eyebrow: {
+    color: "#CBD5E1",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  title: {
+    color: "#FFFFFF",
+    fontSize: 34,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  subtitle: {
+    color: "#E2E8F0",
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: "700",
+    marginTop: 8,
+  },
+
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 24,
+    padding: 16,
+  },
+  cardTitle: {
+    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 8,
+  },
+  cardBody: {
+    color: "#334155",
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: "700",
+  },
+
+  successCard: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#86EFAC",
+  },
+  successTitle: {
+    color: "#15803D",
+  },
+  successBody: {
+    color: "#166534",
+  },
+
+  warningCard: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+  },
+  warningTitle: {
+    color: "#B91C1C",
+  },
+  warningBody: {
+    color: "#991B1B",
+  },
+
+  miniTip: {
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FDBA74",
+    borderRadius: 20,
+    padding: 14,
+  },
+  miniTipText: {
+    color: "#92400E",
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: "800",
+  },
+
+  footerCard: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 24,
+    padding: 16,
+  },
+  footerText: {
+    color: "#64748B",
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+});
