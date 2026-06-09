@@ -263,7 +263,7 @@ export default function Home() {
   const recentShifts = shifts.slice(0, 3);
 
   if (!profile) return <Redirect href="/profile" />;
-  if (workplaces.length === 0) return <Redirect href="/workplaces" />;
+  // if (workplaces.length === 0) return <Redirect href="/workplaces" />;
 
   return (
     <>
