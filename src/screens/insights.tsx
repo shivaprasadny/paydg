@@ -1,425 +1,1067 @@
-// app/insights.tsx (or src/screens/insights.tsx)
+// src/screens/insights.tsx
 // ---------------------------------------------------------
-// PayDG — Insights (Rules-based)
-// ✅ Reads from SQLite shifts table
-// ✅ No AI, just patterns
+// PayDG — Insights V2
+// ✅ Reads shifts from AsyncStorage: paydg_shifts_v1
+// ✅ Premium PayDG light theme
+// ✅ Day / Week / Month / Year filters
+// ✅ Previous / Next period navigation
+// ✅ Expandable insight cards
+// ✅ Charts using react-native-chart-kit
 // ---------------------------------------------------------
 
 import React, { useCallback, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import {
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BarChart, LineChart, PieChart } from "react-native-chart-kit";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 
 import Screen from "../components/Screen";
 import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
-import { Stack } from "expo-router";
 
-// ✅ SQLite
-import { listShifts } from "../storage/repositories/shiftRepo";
-import { listWorkplaces } from "../storage/repositories/workplaceRepo";
+const STORAGE_KEY = "paydg_shifts_v1";
 
-type Insight = { title: string; body: string; tone?: "good" | "neutral" | "warn" };
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const CARD_WIDTH = SCREEN_WIDTH - 36;
+const CHART_WIDTH = CARD_WIDTH - 34;
+
+type Period = "DAY" | "WEEK" | "MONTH" | "YEAR";
+
+type Shift = {
+  id: string;
+  workplaceId: string;
+  workplaceName?: string;
+  roleId?: string;
+  roleName?: string;
+  isoDate: string;
+  startISO: string;
+  endISO: string;
+  workedMinutes?: number;
+  workedHours?: number;
+  hourlyPay?: number;
+  cashTips?: number;
+  creditTips?: number;
+  totalTips?: number;
+  totalEarned?: number;
+  note?: string;
+};
+
+type Totals = {
+  shifts: number;
+  earned: number;
+  hours: number;
+  hourlyPay: number;
+  cashTips: number;
+  cardTips: number;
+  totalTips: number;
+  avgShift: number;
+  avgHourly: number;
+};
+
+/* =========================
+   HELPERS
+========================= */
 
 function money(n: number) {
-  const v = Number.isFinite(n) ? n : 0;
-  return `$${v.toFixed(2)}`;
+  return `$${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
 }
 
-function pctChange(prev: number, cur: number) {
-  if (!Number.isFinite(prev) || prev <= 0) return null;
-  const pct = ((cur - prev) / prev) * 100;
-  return Number.isFinite(pct) ? pct : null;
+function getHours(s: Shift) {
+  if (typeof s.workedHours === "number") return s.workedHours;
+  if (typeof s.workedMinutes === "number") return s.workedMinutes / 60;
+  return 0;
 }
 
-function startOfWeekMon(d: Date) {
-  // Monday start
+function getTips(s: Shift) {
+  if (typeof s.totalTips === "number") return s.totalTips;
+  return (s.cashTips || 0) + (s.creditTips || 0);
+}
+
+function getShiftDate(s: Shift) {
+  return new Date(s.startISO);
+}
+
+function startOfWeekMonday(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
-  const day = x.getDay(); // 0 Sun..6 Sat
-  const diff = (day === 0 ? -6 : 1) - day; // move to Monday
+
+  const day = x.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+
   x.setDate(x.getDate() + diff);
   return x;
 }
 
-function isSameDay(a: Date, b: Date) {
+function endOfWeekSunday(d: Date) {
+  const x = startOfWeekMonday(d);
+  x.setDate(x.getDate() + 6);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function getPeriodWindow(period: Period, anchor: Date) {
+  const start = new Date(anchor);
+  const end = new Date(anchor);
+
+  if (period === "DAY") {
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+  }
+
+  if (period === "WEEK") {
+    return {
+      start: startOfWeekMonday(anchor),
+      end: endOfWeekSunday(anchor),
+    };
+  }
+
+  if (period === "MONTH") {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+
+    end.setMonth(end.getMonth() + 1);
+    end.setDate(0);
+    end.setHours(23, 59, 59, 999);
+  }
+
+  if (period === "YEAR") {
+    start.setMonth(0, 1);
+    start.setHours(0, 0, 0, 0);
+
+    end.setMonth(11, 31);
+    end.setHours(23, 59, 59, 999);
+  }
+
+  return { start, end };
+}
+
+function movePeriodDate(period: Period, anchor: Date, direction: "PREV" | "NEXT") {
+  const next = new Date(anchor);
+  const amount = direction === "NEXT" ? 1 : -1;
+
+  if (period === "DAY") next.setDate(next.getDate() + amount);
+  if (period === "WEEK") next.setDate(next.getDate() + amount * 7);
+  if (period === "MONTH") next.setMonth(next.getMonth() + amount);
+  if (period === "YEAR") next.setFullYear(next.getFullYear() + amount);
+
+  return next;
+}
+
+function getPeriodLabel(period: Period, anchor: Date) {
+  if (period === "DAY") {
+    return anchor.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+
+  if (period === "WEEK") {
+    const { start, end } = getPeriodWindow("WEEK", anchor);
+
+    const a = start.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    });
+
+    const b = end.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    return `${a} – ${b}`;
+  }
+
+  if (period === "MONTH") {
+    return anchor.toLocaleDateString(undefined, {
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  return String(anchor.getFullYear());
+}
+
+function previousPeriodWindow(period: Period, anchor: Date) {
+  const prevAnchor = movePeriodDate(period, anchor, "PREV");
+  return getPeriodWindow(period, prevAnchor);
+}
+
+function filterShiftsByWindow(shifts: Shift[], start: Date, end: Date) {
+  const min = start.getTime();
+  const max = end.getTime();
+
+  return shifts.filter((s) => {
+    const t = getShiftDate(s).getTime();
+    return t >= min && t <= max;
+  });
+}
+
+function computeTotals(shifts: Shift[]): Totals {
+  const earned = shifts.reduce((sum, s) => sum + (s.totalEarned || 0), 0);
+  const hours = shifts.reduce((sum, s) => sum + getHours(s), 0);
+  const hourlyPay = shifts.reduce((sum, s) => sum + (s.hourlyPay || 0), 0);
+  const cashTips = shifts.reduce((sum, s) => sum + (s.cashTips || 0), 0);
+  const cardTips = shifts.reduce((sum, s) => sum + (s.creditTips || 0), 0);
+  const totalTips = shifts.reduce((sum, s) => sum + getTips(s), 0);
+
+  return {
+    shifts: shifts.length,
+    earned,
+    hours,
+    hourlyPay,
+    cashTips,
+    cardTips,
+    totalTips,
+    avgShift: shifts.length > 0 ? earned / shifts.length : 0,
+    avgHourly: hours > 0 ? earned / hours : 0,
+  };
+}
+
+function pctChange(previous: number, current: number) {
+  if (!previous || previous <= 0) return null;
+  return ((current - previous) / previous) * 100;
+}
+
+function dayName(index: number) {
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][index];
+}
+
+function monthName(index: number) {
+  return new Date(2026, index, 1).toLocaleDateString(undefined, {
+    month: "short",
+  });
+}
+
+/* =========================
+   CHART CONFIG
+========================= */
+
+const chartConfig = {
+  backgroundGradientFrom: "#FFFFFF",
+  backgroundGradientTo: "#FFFFFF",
+  decimalPlaces: 0,
+  color: () => "#D97706",
+  labelColor: () => "#64748B",
+  propsForDots: {
+    r: "4",
+    strokeWidth: "2",
+    stroke: "#D97706",
+  },
+  propsForLabels: {
+    fontWeight: "700",
+  },
+};
+
+const pieColors = ["#D97706", "#16A34A", "#1E293B"];
+
+/* =========================
+   SMALL COMPONENTS
+========================= */
+
+function PeriodChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
   return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
+    <Pressable
+      onPress={onPress}
+      style={[styles.periodChip, active && styles.periodChipActive]}
+    >
+      <Text style={[styles.periodChipText, active && styles.periodChipTextActive]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
-function dateKey(d: Date) {
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+function MiniStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.miniStat}>
+      <Text style={styles.miniLabel}>{label}</Text>
+      <Text style={styles.miniValue}>{value}</Text>
+    </View>
+  );
 }
+
+function InsightCard({
+  id,
+  title,
+  summary,
+  expanded,
+  onToggle,
+  children,
+}: {
+  id: string;
+  title: string;
+  summary: string;
+  expanded: boolean;
+  onToggle: (id: string) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <View style={styles.insightCard}>
+      <Pressable onPress={() => onToggle(id)}>
+        <View style={styles.insightHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.insightTitle}>{title}</Text>
+            <Text style={styles.insightSummary}>{summary}</Text>
+          </View>
+
+          <Text style={styles.expandIcon}>{expanded ? "−" : "+"}</Text>
+        </View>
+      </Pressable>
+
+      {expanded ? <View style={styles.expandedArea}>{children}</View> : null}
+    </View>
+  );
+}
+
+/* =========================
+   MAIN SCREEN
+========================= */
 
 export default function InsightsScreen() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
 
-  const [shifts, setShifts] = useState<any[]>([]);
-  const [workplaceNameById, setWorkplaceNameById] = useState<Record<string, string>>({});
+  const [allShifts, setAllShifts] = useState<Shift[]>([]);
+  const [period, setPeriod] = useState<Period>("WEEK");
+  const [anchorDate, setAnchorDate] = useState(new Date());
+
+  const [expandedId, setExpandedId] = useState<string | null>("summary");
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
+      async function loadShifts() {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const arr: Shift[] = raw ? JSON.parse(raw) : [];
 
-      // Load from SQLite (sync repos)
-      const s = listShifts();
-      const wps = listWorkplaces();
-      const map: Record<string, string> = {};
-      for (const w of wps) map[w.id] = w.name;
+        arr.sort(
+          (a, b) =>
+            new Date(b.startISO).getTime() - new Date(a.startISO).getTime()
+        );
 
-      setWorkplaceNameById(map);
-      setShifts(s);
-      setLoading(false);
+        setAllShifts(arr);
+      }
+
+      loadShifts();
     }, [])
   );
 
-  const insights = useMemo<Insight[]>(() => {
-    if (!shifts.length) return [];
+  function toggleCard(id: string) {
+    setExpandedId((current) => (current === id ? null : id));
+  }
 
-    // Totals
-    let totalEarn = 0;
-    let totalTips = 0;
-    let totalHourly = 0;
-    let cashTotal = 0;
-    let creditTotal = 0;
+  const { start, end } = useMemo(
+    () => getPeriodWindow(period, anchorDate),
+    [period, anchorDate]
+  );
 
-    // Weekend vs weekday
-    let weekendEarn = 0;
-    let weekdayEarn = 0;
+  const prevWindow = useMemo(
+    () => previousPeriodWindow(period, anchorDate),
+    [period, anchorDate]
+  );
 
-    // By workplace
-    const wpEarn = new Map<string, number>();
-    const wpCount = new Map<string, number>();
-    const wpTips = new Map<string, number>();
+  const currentShifts = useMemo(
+    () => filterShiftsByWindow(allShifts, start, end),
+    [allShifts, start, end]
+  );
 
-    // By day of week (avg)
-    const dayEarn = new Map<number, number>();
-    const dayCount = new Map<number, number>();
+  const previousShifts = useMemo(
+    () => filterShiftsByWindow(allShifts, prevWindow.start, prevWindow.end),
+    [allShifts, prevWindow.start, prevWindow.end]
+  );
 
-    // Late-night
-    let lateNightCount = 0;
+  const totals = useMemo(() => computeTotals(currentShifts), [currentShifts]);
+  const prevTotals = useMemo(() => computeTotals(previousShifts), [previousShifts]);
+  const lifetimeTotals = useMemo(() => computeTotals(allShifts), [allShifts]);
 
-    // Tip % best shift
-    let bestTipPct = -1;
-    let bestTipPctShift: any | null = null;
+  const earnPct = pctChange(prevTotals.earned, totals.earned);
 
-    // Work dates for streak
-    const workedDays = new Set<string>();
+  /* =========================
+     CHART DATA — PERIOD VS PREVIOUS
+  ========================= */
 
-    // For week comparison
-    const now = new Date();
-    const thisMon = startOfWeekMon(now);
-    const lastMon = new Date(thisMon);
-    lastMon.setDate(lastMon.getDate() - 7);
-    const nextMon = new Date(thisMon);
-    nextMon.setDate(nextMon.getDate() + 7);
+  const comparisonChartData = {
+    labels: ["Earned", "Tips", "Hours"],
+    datasets: [
+      {
+        data: [
+          Number(prevTotals.earned.toFixed(0)),
+          Number(prevTotals.totalTips.toFixed(0)),
+          Number(prevTotals.hours.toFixed(0)),
+        ],
+      },
+      {
+        data: [
+          Number(totals.earned.toFixed(0)),
+          Number(totals.totalTips.toFixed(0)),
+          Number(totals.hours.toFixed(0)),
+        ],
+      },
+    ],
+    legend: ["Previous", "Current"],
+  };
 
-    let thisWeekEarn = 0,
-      lastWeekEarn = 0,
-      thisWeekTips = 0,
-      lastWeekTips = 0,
-      thisWeekHourly = 0,
-      lastWeekHourly = 0;
+  /* =========================
+     CHART DATA — BEST DAY
+  ========================= */
 
-    for (const s of shifts) {
-      const earned = Number(s.totalEarned || 0);
-      const tips = Number(s.totalTips || 0);
-      const hourly = Number(s.hourlyPay || 0);
-      const cash = Number(s.cashTips || 0);
-      const credit = Number(s.creditTips || 0);
+  const weekdayAverages = useMemo(() => {
+    const sums = Array(7).fill(0);
+    const counts = Array(7).fill(0);
 
-      totalEarn += earned;
-      totalTips += tips;
-      totalHourly += hourly;
-      cashTotal += cash;
-      creditTotal += credit;
+    for (const s of currentShifts) {
+      const d = getShiftDate(s).getDay();
+      sums[d] += s.totalEarned || 0;
+      counts[d] += 1;
+    }
 
-      const start = new Date(s.startTs);
-      const end = new Date(s.endTs);
+    return sums.map((sum, index) => ({
+      label: dayName(index),
+      value: counts[index] > 0 ? sum / counts[index] : 0,
+    }));
+  }, [currentShifts]);
 
-      // streak day key
-      workedDays.add(dateKey(start));
+  const bestDay = weekdayAverages.reduce(
+    (best, item) => (item.value > best.value ? item : best),
+    { label: "—", value: 0 }
+  );
 
-      // weekend/weekday
-      const day = start.getDay();
-      const isWeekend = day === 0 || day === 6;
-      if (isWeekend) weekendEarn += earned;
-      else weekdayEarn += earned;
+  const weekdayChartData = {
+    labels: weekdayAverages.map((x) => x.label),
+    datasets: [{ data: weekdayAverages.map((x) => Number(x.value.toFixed(0))) }],
+  };
 
-      // workplace buckets
-      const wpName = workplaceNameById[s.workplaceId] ?? "Unknown workplace";
-      wpEarn.set(wpName, (wpEarn.get(wpName) || 0) + earned);
-      wpTips.set(wpName, (wpTips.get(wpName) || 0) + tips);
-      wpCount.set(wpName, (wpCount.get(wpName) || 0) + 1);
+  /* =========================
+     CHART DATA — TIPS
+  ========================= */
 
-      // day-of-week avg
-      dayEarn.set(day, (dayEarn.get(day) || 0) + earned);
-      dayCount.set(day, (dayCount.get(day) || 0) + 1);
+  const tipsPieData = [
+    {
+      name: "Hourly",
+      amount: Math.max(totals.hourlyPay, 0),
+      color: pieColors[2],
+      legendFontColor: "#334155",
+      legendFontSize: 12,
+    },
+    {
+      name: "Cash",
+      amount: Math.max(totals.cashTips, 0),
+      color: pieColors[0],
+      legendFontColor: "#334155",
+      legendFontSize: 12,
+    },
+    {
+      name: "Card",
+      amount: Math.max(totals.cardTips, 0),
+      color: pieColors[1],
+      legendFontColor: "#334155",
+      legendFontSize: 12,
+    },
+  ].filter((x) => x.amount > 0);
 
-      // late-night (end next day OR ends after midnight hour)
-      if (end.getDate() !== start.getDate() || end.getHours() < 6) {
-        lateNightCount += 1;
+  const tipPercent =
+    totals.earned > 0 ? (totals.totalTips / totals.earned) * 100 : 0;
+
+  /* =========================
+     CHART DATA — WORK HABITS
+  ========================= */
+
+  const hoursByDay = useMemo(() => {
+    const hours = Array(7).fill(0);
+
+    for (const s of currentShifts) {
+      const d = getShiftDate(s).getDay();
+      hours[d] += getHours(s);
+    }
+
+    return hours.map((value, index) => ({
+      label: dayName(index),
+      value,
+    }));
+  }, [currentShifts]);
+
+  const hoursChartData = {
+    labels: hoursByDay.map((x) => x.label),
+    datasets: [{ data: hoursByDay.map((x) => Number(x.value.toFixed(1))) }],
+  };
+
+  const longestShift = currentShifts.reduce(
+    (max, s) => Math.max(max, getHours(s)),
+    0
+  );
+
+  const lateNightCount = currentShifts.filter((s) => {
+    const startDate = new Date(s.startISO);
+    const endDate = new Date(s.endISO);
+
+    return (
+      endDate.getDate() !== startDate.getDate() ||
+      endDate.getHours() < 6
+    );
+  }).length;
+
+  /* =========================
+     CHART DATA — MILESTONES
+  ========================= */
+
+  const monthlyTrend = useMemo(() => {
+    const year = anchorDate.getFullYear();
+    const totalsByMonth = Array(12).fill(0);
+
+    for (const s of allShifts) {
+      const d = getShiftDate(s);
+
+      if (d.getFullYear() === year) {
+        totalsByMonth[d.getMonth()] += s.totalEarned || 0;
       }
-
-      // tip percentage
-      if (earned > 0) {
-        const tipPct = (tips / earned) * 100;
-        if (tipPct > bestTipPct) {
-          bestTipPct = tipPct;
-          bestTipPctShift = s;
-        }
-      }
-
-      // week buckets
-      if (start >= thisMon && start < nextMon) {
-        thisWeekEarn += earned;
-        thisWeekTips += tips;
-        thisWeekHourly += hourly;
-      } else if (start >= lastMon && start < thisMon) {
-        lastWeekEarn += earned;
-        lastWeekTips += tips;
-        lastWeekHourly += hourly;
-      }
     }
 
-    // Best workplace by avg per shift
-    let bestWpAvgName = "";
-    let bestWpAvg = 0;
-    for (const [name, sum] of wpEarn.entries()) {
-      const c = wpCount.get(name) || 1;
-      const avg = sum / c;
-      if (avg > bestWpAvg) {
-        bestWpAvg = avg;
-        bestWpAvgName = name;
-      }
-    }
+    return totalsByMonth.map((value, index) => ({
+      label: monthName(index),
+      value,
+    }));
+  }, [allShifts, anchorDate]);
 
-    // Best day of week by avg
-    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    let bestDay = -1;
-    let bestDayAvg = 0;
-    for (const [d, sum] of dayEarn.entries()) {
-      const c = dayCount.get(d) || 1;
-      const avg = sum / c;
-      if (avg > bestDayAvg) {
-        bestDayAvg = avg;
-        bestDay = d;
-      }
-    }
+  const monthlyTrendData = {
+    labels: monthlyTrend.map((x) => x.label),
+    datasets: [
+      {
+        data: monthlyTrend.map((x) => Number(x.value.toFixed(0))),
+      },
+    ],
+  };
 
-    // Streak: count backwards from today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    let streak = 0;
-    for (let i = 0; i < 365; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      if (workedDays.has(dateKey(d))) streak++;
-      else break;
-    }
+  const bestSingleShift = allShifts.reduce(
+    (best, s) =>
+      (s.totalEarned || 0) > (best?.totalEarned || 0) ? s : best,
+    null as Shift | null
+  );
 
-    const list: Insight[] = [];
+  /* =========================
+     CARD SUMMARIES
+  ========================= */
 
-    // ⭐ Fun fact (dynamic)
-    const cashPct = totalTips > 0 ? (cashTotal / totalTips) * 100 : 0;
-    const funFact =
-      totalTips > 0
-        ? cashPct >= 60
-          ? `Fun fact: ${cashPct.toFixed(
-              0
-            )}% of your tips are CASH. Track it — cash gets forgotten the fastest. 😄`
-          : `Fun fact: ${creditTotal > cashTotal ? "Most" : "A lot"} of your tips are on CARD. Good tracking = better tax time. ✅`
-        : `Fun fact: Add a few shifts and PayDG will start showing patterns automatically. 😄`;
+  const summaryText =
+    totals.shifts === 0
+      ? "No shifts in this period yet."
+      : `You earned ${money(totals.earned)} across ${totals.shifts} shift${
+          totals.shifts === 1 ? "" : "s"
+        }.`;
 
-    list.push({
-      title: "🎯 Fun fact",
-      body: funFact,
-      tone: "good",
-    });
+  const comparisonText =
+    earnPct == null
+      ? `Current period: ${money(totals.earned)}.`
+      : `You earned ${Math.abs(earnPct).toFixed(0)}% ${
+          earnPct >= 0 ? "more" : "less"
+        } than the previous period.`;
 
-    // Week vs last week
-    const earnPct = pctChange(lastWeekEarn, thisWeekEarn);
-    const tipsPct = pctChange(lastWeekTips, thisWeekTips);
-    const hourlyPct = pctChange(lastWeekHourly, thisWeekHourly);
+  const patternsText =
+    bestDay.value > 0
+      ? `${bestDay.label} is your best earning day in this period.`
+      : "Add more shifts to discover your best day.";
 
-    list.push({
-      title: "📅 This week vs last week",
-      body:
-        `Total: ${money(thisWeekEarn)} ` +
-        (earnPct == null ? "" : `(${earnPct >= 0 ? "+" : ""}${earnPct.toFixed(0)}%)`) +
-        `\nTips: ${money(thisWeekTips)} ` +
-        (tipsPct == null ? "" : `(${tipsPct >= 0 ? "+" : ""}${tipsPct.toFixed(0)}%)`) +
-        `\nHourly: ${money(thisWeekHourly)} ` +
-        (hourlyPct == null ? "" : `(${hourlyPct >= 0 ? "+" : ""}${hourlyPct.toFixed(0)}%)`),
-      tone: "neutral",
-    });
+  const tipText =
+    totals.earned > 0
+      ? `Tips are ${tipPercent.toFixed(0)}% of your income.`
+      : "Add tips to see cash/card insights.";
 
-    // Weekend vs weekday
-    const weekendPct = pctChange(weekdayEarn, weekendEarn);
-    list.push({
-      title: "🗓️ Weekend vs Weekday",
-      body:
-        weekendPct == null
-          ? `Weekend: ${money(weekendEarn)} • Weekday: ${money(weekdayEarn)}`
-          : `You earn ${Math.abs(weekendPct).toFixed(0)}% ${
-              weekendPct >= 0 ? "more" : "less"
-            } on weekends.\nWeekend: ${money(weekendEarn)} • Weekday: ${money(weekdayEarn)}`,
-      tone: weekendPct != null && weekendPct < 0 ? "warn" : "neutral",
-    });
+  const habitsText =
+    totals.shifts > 0
+      ? `Your average shift is ${
+          totals.shifts > 0 ? (totals.hours / totals.shifts).toFixed(1) : "0"
+        } hours.`
+      : "Add shifts to see work habits.";
 
-    // Best day
-    if (bestDay >= 0) {
-      list.push({
-        title: "🏆 Best day of the week",
-        body: `${dayNames[bestDay]} is your highest average day: ${money(bestDayAvg)} per shift.`,
-        tone: "good",
-      });
-    }
-
-    // Best workplace avg
-    if (bestWpAvgName) {
-      list.push({
-        title: "🏢 Most profitable workplace",
-        body: `${bestWpAvgName} has the best average shift: ${money(bestWpAvg)} per shift.`,
-        tone: "good",
-      });
-    }
-
-    // Tip split
-    list.push({
-      title: "💳 Tips split (cash vs card)",
-      body:
-        `Cash: ${money(cashTotal)}\n` +
-        `Card: ${money(creditTotal)}\n` +
-        (totalTips > 0 ? `Cash share: ${(cashTotal / totalTips * 100).toFixed(0)}%` : ""),
-      tone: "neutral",
-    });
-
-    // Tip % best shift
-    if (bestTipPctShift && bestTipPct >= 0) {
-      const wpName =
-        workplaceNameById[bestTipPctShift.workplaceId] ?? "Unknown workplace";
-      list.push({
-        title: "🔥 Highest tip percentage shift",
-        body: `${wpName} • ${bestTipPctShift.role}\nTips were ${bestTipPct.toFixed(
-          0
-        )}% of your total that shift.`,
-        tone: "good",
-      });
-    }
-
-    // Late night
-    if (lateNightCount > 0) {
-      list.push({
-        title: "🌙 Late-night shifts",
-        body: `You worked ${lateNightCount} late-night/overnight shift${
-          lateNightCount === 1 ? "" : "s"
-        }. Overnight shifts are tracked correctly in PayDG ✅`,
-        tone: "neutral",
-      });
-    }
-
-    // Streak
-    list.push({
-      title: "📈 Work streak",
-      body:
-        streak >= 2
-          ? `You’ve worked ${streak} days in a row. Respect. 💪`
-          : streak === 1
-          ? `You worked today. Keep the momentum 💪`
-          : `No streak right now — add a shift and start one today 😊`,
-      tone: "neutral",
-    });
-
-    return list;
-  }, [shifts, workplaceNameById]);
+  const milestoneText =
+    lifetimeTotals.shifts > 0
+      ? `You tracked ${lifetimeTotals.shifts} shifts and ${money(
+          lifetimeTotals.earned
+        )} total.`
+      : "Your milestones will appear after you add shifts.";
 
   return (
-    <Screen pad={16}>
-        <Stack.Screen options={{ title: "Insights" }} />
+    <Screen bg="#F6F7FB" pad={0}>
+      <Stack.Screen options={{ title: "Insights" }} />
 
-      <ActiveShiftTimerCard />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+      >
+        <ActiveShiftTimerCard />
 
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Insights</Text>
-        <Pressable style={styles.btnSmall} onPress={() => router.back()}>
-          <Text style={styles.btnSmallText}>Back</Text>
-        </Pressable>
-      </View>
-
-      <Text style={styles.sub}>
-        Quick patterns from your data. The more shifts you add, the smarter this gets.
-      </Text>
-
-      {loading ? (
-        <Text style={styles.helper}>Loading...</Text>
-      ) : insights.length === 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>No insights yet</Text>
-          <Text style={styles.body}>
-            Add a few shifts first. Then you’ll see weekend patterns, best day, best workplace,
-            and comparisons.
+        {/* =========================
+            HEADER
+        ========================= */}
+        <View style={styles.heroCard}>
+          <Text style={styles.eyebrow}>✨ PayDG insights</Text>
+          <Text style={styles.title}>Insights</Text>
+          <Text style={styles.subtitle}>
+            Smart patterns from your shifts, tips, hours, workplaces, and roles.
           </Text>
         </View>
-      ) : (
-        insights.map((x, idx) => (
-          <View
-            key={idx}
-            style={[
-              styles.card,
-              x.tone === "good" ? styles.cardGood : null,
-              x.tone === "warn" ? styles.cardWarn : null,
-            ]}
+
+        {/* =========================
+            PERIOD FILTERS
+        ========================= */}
+        <View style={styles.periodTabs}>
+          {(["DAY", "WEEK", "MONTH", "YEAR"] as Period[]).map((p) => (
+            <PeriodChip
+              key={p}
+              label={p}
+              active={period === p}
+              onPress={() => {
+                setPeriod(p);
+                setAnchorDate(new Date());
+              }}
+            />
+          ))}
+        </View>
+
+        {/* =========================
+            PERIOD NAVIGATION
+        ========================= */}
+        <View style={styles.periodNav}>
+          <Pressable
+            style={styles.navBtn}
+            onPress={() =>
+              setAnchorDate((d) => movePeriodDate(period, d, "PREV"))
+            }
           >
-            <Text style={styles.cardTitle}>{x.title}</Text>
-            <Text style={styles.body}>{x.body}</Text>
+            <Text style={styles.navText}>‹</Text>
+          </Pressable>
+
+          <Text style={styles.periodLabel}>
+            {getPeriodLabel(period, anchorDate)}
+          </Text>
+
+          <Pressable
+            style={styles.navBtn}
+            onPress={() =>
+              setAnchorDate((d) => movePeriodDate(period, d, "NEXT"))
+            }
+          >
+            <Text style={styles.navText}>›</Text>
+          </Pressable>
+        </View>
+
+        {/* =========================
+            EMPTY STATE
+        ========================= */}
+        {allShifts.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No insights yet</Text>
+            <Text style={styles.emptyText}>
+              Add a few shifts first. Then PayDG will show patterns like best
+              day, best workplace, tips percentage, and work habits.
+            </Text>
           </View>
-        ))
-      )}
+        ) : null}
+
+        {/* =========================
+            1. SMART SUMMARY
+        ========================= */}
+        <InsightCard
+          id="summary"
+          title="💡 Smart Summary"
+          summary={summaryText}
+          expanded={expandedId === "summary"}
+          onToggle={toggleCard}
+        >
+          <View style={styles.gridTwo}>
+            <MiniStat label="Earned" value={money(totals.earned)} />
+            <MiniStat label="Hours" value={`${totals.hours.toFixed(2)}h`} />
+            <MiniStat label="Avg / Shift" value={money(totals.avgShift)} />
+            <MiniStat label="Avg / Hour" value={money(totals.avgHourly)} />
+          </View>
+
+          <Text style={styles.explainText}>
+            This summary is based only on the selected period.
+          </Text>
+        </InsightCard>
+
+        {/* =========================
+            2. PERIOD VS PREVIOUS
+        ========================= */}
+        <InsightCard
+          id="compare"
+          title="📅 This Period vs Previous"
+          summary={comparisonText}
+          expanded={expandedId === "compare"}
+          onToggle={toggleCard}
+        >
+          <BarChart
+            data={comparisonChartData}
+            width={CHART_WIDTH}
+            height={230}
+            chartConfig={chartConfig}
+            yAxisLabel="$"
+            yAxisSuffix=""
+            fromZero
+            showValuesOnTopOfBars
+            style={styles.chart}
+          />
+
+          <Text style={styles.explainText}>
+            Compares earned income, tips, and hours with the previous same
+            period.
+          </Text>
+        </InsightCard>
+
+        {/* =========================
+            3. BEST PATTERNS
+        ========================= */}
+        <InsightCard
+          id="patterns"
+          title="🏆 Best Patterns"
+          summary={patternsText}
+          expanded={expandedId === "patterns"}
+          onToggle={toggleCard}
+        >
+          <BarChart
+            data={weekdayChartData}
+            width={CHART_WIDTH}
+            height={230}
+            chartConfig={chartConfig}
+            yAxisLabel="$"
+            yAxisSuffix=""
+            fromZero
+            showValuesOnTopOfBars
+            style={styles.chart}
+          />
+
+          <Text style={styles.explainText}>
+            Shows average earning by weekday for this selected period.
+          </Text>
+        </InsightCard>
+
+        {/* =========================
+            4. TIP INSIGHTS
+        ========================= */}
+        <InsightCard
+          id="tips"
+          title="🎁 Tip Insights"
+          summary={tipText}
+          expanded={expandedId === "tips"}
+          onToggle={toggleCard}
+        >
+          {tipsPieData.length === 0 ? (
+            <Text style={styles.emptyText}>No tip chart data for this period.</Text>
+          ) : (
+            <PieChart
+              data={tipsPieData}
+              width={CHART_WIDTH}
+              height={220}
+              chartConfig={chartConfig}
+              accessor="amount"
+              backgroundColor="transparent"
+              paddingLeft="8"
+              absolute
+            />
+          )}
+
+          <View style={styles.gridTwo}>
+            <MiniStat label="Cash tips" value={money(totals.cashTips)} />
+            <MiniStat label="Card tips" value={money(totals.cardTips)} />
+            <MiniStat label="Total tips" value={money(totals.totalTips)} />
+            <MiniStat label="Tip %" value={`${tipPercent.toFixed(0)}%`} />
+          </View>
+        </InsightCard>
+
+        {/* =========================
+            5. WORK HABITS
+        ========================= */}
+        <InsightCard
+          id="habits"
+          title="⏱ Work Habits"
+          summary={habitsText}
+          expanded={expandedId === "habits"}
+          onToggle={toggleCard}
+        >
+          <BarChart
+            data={hoursChartData}
+            width={CHART_WIDTH}
+            height={230}
+            chartConfig={chartConfig}
+            yAxisLabel=""
+            yAxisSuffix="h"
+            fromZero
+            showValuesOnTopOfBars
+            style={styles.chart}
+          />
+
+          <View style={styles.gridTwo}>
+            <MiniStat
+              label="Avg shift"
+              value={
+                totals.shifts > 0
+                  ? `${(totals.hours / totals.shifts).toFixed(1)}h`
+                  : "0h"
+              }
+            />
+            <MiniStat label="Longest shift" value={`${longestShift.toFixed(1)}h`} />
+            <MiniStat label="Late nights" value={`${lateNightCount}`} />
+            <MiniStat label="Shifts" value={`${totals.shifts}`} />
+          </View>
+        </InsightCard>
+
+        {/* =========================
+            6. MILESTONES
+        ========================= */}
+        <InsightCard
+          id="milestones"
+          title="🔥 Milestones"
+          summary={milestoneText}
+          expanded={expandedId === "milestones"}
+          onToggle={toggleCard}
+        >
+          <LineChart
+            data={monthlyTrendData}
+            width={CHART_WIDTH}
+            height={230}
+            chartConfig={chartConfig}
+            yAxisLabel="$"
+            yAxisSuffix=""
+            bezier
+            style={styles.chart}
+          />
+
+          <View style={styles.gridTwo}>
+            <MiniStat label="Lifetime earned" value={money(lifetimeTotals.earned)} />
+            <MiniStat label="Lifetime hours" value={`${lifetimeTotals.hours.toFixed(0)}h`} />
+            <MiniStat label="Total shifts" value={`${lifetimeTotals.shifts}`} />
+            <MiniStat
+              label="Best shift"
+              value={bestSingleShift ? money(bestSingleShift.totalEarned || 0) : "$0.00"}
+            />
+          </View>
+        </InsightCard>
+
+        {/* =========================
+            FUTURE SPACE
+            Later we can add:
+            - Best workplace chart
+            - Best role chart
+            - Tip percentage trend
+            - Export insight summary
+            - AI-generated insight text
+        ========================= */}
+
+        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backText}>← Back</Text>
+        </Pressable>
+      </ScrollView>
     </Screen>
   );
 }
 
+/* =========================
+   PAYDG PREMIUM LIGHT THEME
+========================= */
+
 const styles = StyleSheet.create({
-  headerRow: {
+  container: {
+    padding: 18,
+    paddingBottom: 56,
+    gap: 14,
+  },
+
+  heroCard: {
+    backgroundColor: "#1E293B",
+    borderRadius: 28,
+    padding: 22,
+  },
+  eyebrow: {
+    color: "#CBD5E1",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  title: {
+    color: "#FFFFFF",
+    fontSize: 34,
+    fontWeight: "900",
+    marginTop: 4,
+  },
+  subtitle: {
+    color: "#E2E8F0",
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: "700",
+    marginTop: 8,
+  },
+
+  periodTabs: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 4,
     flexDirection: "row",
-    justifyContent: "space-between",
+  },
+  periodChip: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 14,
     alignItems: "center",
   },
-  title: { color: "white", fontSize: 28, fontWeight: "900" },
-  sub: { color: "#B8C0CC", marginTop: 10,marginBottom:4, lineHeight: 18 },
+  periodChipActive: {
+    backgroundColor: "#D97706",
+  },
+  periodChipText: {
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  periodChipTextActive: {
+    color: "#FFFFFF",
+  },
 
-  helper: { color: "#B8C0CC", opacity: 0.7, marginTop: 8 },
-
-  card: {
-    backgroundColor: "#111827",
+  periodNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  navBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#1F2937",
-    borderRadius: 14,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navText: {
+    color: "#D97706",
+    fontSize: 30,
+    fontWeight: "900",
+  },
+  periodLabel: {
+    color: "#0F172A",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+
+  insightCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  insightHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  insightTitle: {
+    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  insightSummary: {
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
+    marginTop: 5,
+  },
+  expandIcon: {
+    color: "#D97706",
+    fontSize: 30,
+    fontWeight: "900",
+  },
+  expandedArea: {
+    marginTop: 16,
+    gap: 14,
+  },
+
+  gridTwo: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  miniStat: {
+    width: "48%",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 18,
     padding: 14,
-    gap: 8,
-    marginTop: 12,
   },
-  cardGood: {
-    borderColor: "#14532D",
-    backgroundColor: "#0B2A17",
+  miniLabel: {
+    color: "#64748B",
+    fontSize: 12,
+    fontWeight: "800",
   },
-  cardWarn: {
-    borderColor: "#7F1D1D",
-    backgroundColor: "#2A0B0B",
+  miniValue: {
+    color: "#0F172A",
+    fontSize: 17,
+    fontWeight: "900",
+    marginTop: 6,
   },
-  cardTitle: { color: "white", fontSize: 16, fontWeight: "900" },
-  body: { color: "#B8C0CC", fontSize: 14, lineHeight: 20 },
 
-  btnSmall: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#1F2937",
+  chart: {
+    borderRadius: 18,
   },
-  btnSmallText: { color: "white", fontWeight: "900" },
+  explainText: {
+    color: "#64748B",
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+
+  emptyCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+  },
+  emptyTitle: {
+    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  emptyText: {
+    color: "#64748B",
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: "center",
+    fontWeight: "700",
+    marginTop: 6,
+  },
+
+  backBtn: {
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: "#1E293B",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "900",
+  },
 });
