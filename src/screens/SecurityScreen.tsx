@@ -158,52 +158,67 @@ export default function SecurityScreen() {
     Alert.alert("Saved", "PIN hint updated.");
   }
 
-  async function handleToggleBiometric() {
-    const newValue = !biometricEnabled;
-
-    if (newValue) {
-      const available = await isBiometricAvailable();
-
-      if (!available) {
-        Alert.alert(
-          "Biometric unavailable",
-          "Face ID, Touch ID, or Fingerprint is not available or not enrolled on this device."
-        );
-        return;
-      }
-
-      const success = await authenticateWithBiometrics();
-
-      if (!success) {
-        Alert.alert("Not enabled", "Biometric verification was cancelled or failed.");
-        return;
-      }
-    }
-
-    await saveBiometricEnabled(newValue);
-
-    const savedValue = await isBiometricEnabled();
-    setBiometricEnabled(savedValue);
-
+ async function handleToggleBiometric() {
+  if (!pinEnabled) {
     Alert.alert(
-      "Biometric Unlock",
-      savedValue ? "Biometric is now ON." : "Biometric is now OFF."
+      "Enable PIN first",
+      "Please enable PIN lock before using biometric unlock. PIN is required as a fallback."
     );
+    return;
   }
 
-  return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <KeyboardAvoidingView
-        style={styles.screen}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
-        >
-          <Text style={styles.title}>Security</Text>
-          <Text style={styles.subtitle}>Protect PayDG with PIN and biometric unlock.</Text>
+  const newValue = !biometricEnabled;
+
+  if (newValue) {
+    const available = await isBiometricAvailable();
+
+    if (!available) {
+      Alert.alert(
+        "Biometric unavailable",
+        "Face ID, Touch ID, or Fingerprint is not available or not enrolled on this device."
+      );
+      return;
+    }
+
+    const success = await authenticateWithBiometrics();
+
+    if (!success) {
+      Alert.alert(
+        "Not enabled",
+        "Biometric verification was cancelled or failed."
+      );
+      return;
+    }
+  }
+
+  await saveBiometricEnabled(newValue);
+
+  const savedValue = await isBiometricEnabled();
+  setBiometricEnabled(savedValue);
+
+  Alert.alert(
+    "Biometric Unlock",
+    savedValue ? "Biometric is now ON." : "Biometric is now OFF."
+  );
+}
+
+ return (
+  <KeyboardAvoidingView
+    style={styles.screen}
+    behavior={Platform.OS === "ios" ? "padding" : undefined}
+  >
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.content}
+      scrollEventThrottle={16}
+      overScrollMode="never"
+    >
+      <Text style={styles.title}>Security</Text>
+      <Text style={styles.subtitle}>
+        Protect PayDG with PIN and biometric unlock.
+      </Text>
 
           <View style={styles.card}>
             <View style={styles.statusBox}>
@@ -294,45 +309,55 @@ export default function SecurityScreen() {
             )}
           </View>
 
-          {pinEnabled && (
-            <View style={styles.card}>
-              <View style={styles.statusBox}>
-                <View>
-                  <Text style={styles.statusTitle}>Biometric Unlock</Text>
-                  <Text style={styles.statusSub}>
-                    Face ID, Touch ID, or Fingerprint with PIN fallback
-                  </Text>
-                </View>
+         
 
-                <Text style={biometricEnabled ? styles.statusOn : styles.statusOff}>
-                  {biometricEnabled ? "ON" : "OFF"}
-                </Text>
-              </View>
+         {/* Biometric Unlock */}
+<View style={styles.card}>
+  <View style={styles.statusBox}>
+    <View>
+      <Text style={styles.statusTitle}>Biometric Unlock</Text>
+      <Text style={styles.statusSub}>
+        Face ID, Touch ID, or Fingerprint with PIN fallback
+      </Text>
+    </View>
 
-              {!biometricAvailable ? (
-                <View style={styles.warningBox}>
-                  <Text style={styles.warningText}>
-                    Biometric unlock is not available or not enrolled on this device.
-                  </Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={biometricEnabled ? styles.biometricOffButton : styles.biometricButton}
-                  onPress={handleToggleBiometric}
-                >
-                  <Text
-                    style={
-                      biometricEnabled
-                        ? styles.biometricOffButtonText
-                        : styles.biometricButtonText
-                    }
-                  >
-                    {biometricEnabled ? "Disable Biometric" : "Enable Biometric"}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+    <Text style={biometricEnabled ? styles.statusOn : styles.statusOff}>
+      {biometricEnabled ? "ON" : "OFF"}
+    </Text>
+  </View>
+
+  {!pinEnabled ? (
+    <View style={styles.warningBox}>
+      <Text style={styles.warningText}>
+        Enable PIN first to use biometric unlock.
+      </Text>
+    </View>
+  ) : !biometricAvailable ? (
+    <View style={styles.warningBox}>
+      <Text style={styles.warningText}>
+        Biometric unlock is not available or not enrolled on this device.
+      </Text>
+    </View>
+  ) : null}
+
+  <TouchableOpacity
+    style={biometricEnabled ? styles.biometricOffButton : styles.biometricButton}
+    onPress={handleToggleBiometric}
+  >
+    <Text
+      style={
+        biometricEnabled
+          ? styles.biometricOffButtonText
+          : styles.biometricButtonText
+      }
+    >
+      {biometricEnabled ? "Disable Biometric" : "Enable Biometric"}
+    </Text>
+  </TouchableOpacity>
+</View>
+
+
+        
 
           <View style={styles.infoCard}>
             <Text style={styles.infoTitle}>Important</Text>
@@ -340,15 +365,18 @@ export default function SecurityScreen() {
               PIN is saved only on this phone. Biometric unlock only works when PIN lock is enabled.
             </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
-  );
+        
+   </ScrollView>
+  </KeyboardAvoidingView>
+);
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#F6F7FB" },
-  content: { padding: 20, paddingBottom: 44 },
+content: {
+  padding: 20,
+  paddingBottom: 70,
+},
   title: { fontSize: 32, fontWeight: "900", color: "#0F172A" },
   subtitle: {
     marginTop: 4,
@@ -464,13 +492,14 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 16,
   },
-  warningBox: {
-    backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FED7AA",
-    borderRadius: 16,
-    padding: 14,
-  },
+ warningBox: {
+  backgroundColor: "#FFF7ED",
+  borderWidth: 1,
+  borderColor: "#FED7AA",
+  borderRadius: 16,
+  padding: 14,
+  marginBottom: 14,
+},
   warningText: {
     color: "#92400E",
     fontSize: 13,
