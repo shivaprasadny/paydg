@@ -26,9 +26,18 @@
         "backgroundColor": "#0B0F1A"
       }
     },
-    "plugins": [
-      "expo-router"
-    ],
+   "plugins": [
+  "expo-router",
+
+  [
+    "expo-local-authentication",
+    {
+      "faceIDPermission": "Allow PayDG to use Face ID for secure app unlock."
+    }
+  ]
+
+  // future plugins here
+],
     "extra": {
       "router": {},
       "eas": {

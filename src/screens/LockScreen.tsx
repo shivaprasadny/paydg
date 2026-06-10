@@ -14,36 +14,49 @@ import {
 
 import { getPinHint, verifyPin } from "../services/securityService";
 
+import {
+  authenticateWithBiometrics,
+  isBiometricAvailable,
+  isBiometricEnabled,
+} from "../services/biometricService";
+
 type Props = {
   onUnlocked: () => void;
 };
 
-/**
- * LockScreen
- *
- * Shows when PIN lock is enabled.
- * User must enter correct 4-digit PIN to enter PayDG.
- */
 export default function LockScreen({ onUnlocked }: Props) {
   const [pin, setPin] = useState("");
   const [pinHint, setPinHint] = useState("");
   const [showHint, setShowHint] = useState(false);
+  const [biometricReady, setBiometricReady] = useState(false);
 
   useEffect(() => {
-    loadHint();
+    let timer: ReturnType<typeof setTimeout>;
+
+    async function loadLockState() {
+      const hint = await getPinHint();
+      setPinHint(hint);
+
+      const enabled = await isBiometricEnabled();
+      const available = await isBiometricAvailable();
+
+      const ready = enabled && available;
+      setBiometricReady(ready);
+
+      if (ready) {
+        timer = setTimeout(() => {
+          handleBiometricUnlock();
+        }, 1000);
+      }
+    }
+
+    loadLockState();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
-  /**
-   * Load optional PIN hint from local storage.
-   */
-  async function loadHint() {
-    const hint = await getPinHint();
-    setPinHint(hint);
-  }
-
-  /**
-   * Verify PIN and unlock app.
-   */
   async function handleUnlock() {
     Keyboard.dismiss();
 
@@ -64,6 +77,15 @@ export default function LockScreen({ onUnlocked }: Props) {
     onUnlocked();
   }
 
+  async function handleBiometricUnlock() {
+    const success = await authenticateWithBiometrics();
+
+    if (success) {
+      setPin("");
+      onUnlocked();
+    }
+  }
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <KeyboardAvoidingView
@@ -78,8 +100,20 @@ export default function LockScreen({ onUnlocked }: Props) {
           <Text style={styles.title}>PayDG Locked</Text>
 
           <Text style={styles.subtitle}>
-            Protect your shift, income, and payment data with PIN protection.
+            Unlock with Face ID, Fingerprint, or your 4-digit PIN.
           </Text>
+
+          {biometricReady ? (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.biometricButton}
+              onPress={handleBiometricUnlock}
+            >
+              <Text style={styles.biometricButtonText}>
+                🧬 Unlock with Biometrics
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
           {pinHint.trim().length > 0 && (
             <>
@@ -128,9 +162,6 @@ export default function LockScreen({ onUnlocked }: Props) {
   );
 }
 
-/**
- * PayDG premium light theme.
- */
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -162,9 +193,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 16,
   },
-  lockIcon: {
-    fontSize: 38,
-  },
+  lockIcon: { fontSize: 38 },
   title: {
     fontSize: 28,
     fontWeight: "900",
@@ -179,6 +208,19 @@ const styles = StyleSheet.create({
     color: "#64748B",
     textAlign: "center",
     lineHeight: 20,
+  },
+  biometricButton: {
+    width: "100%",
+    backgroundColor: "#D97706",
+    padding: 16,
+    borderRadius: 18,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  biometricButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "900",
   },
   hintButton: {
     width: "100%",

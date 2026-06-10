@@ -23,15 +23,13 @@ import {
   verifyPin,
 } from "../services/securityService";
 
-/**
- * SecurityScreen
- *
- * User can:
- * - Enable 4-digit PIN
- * - Change existing PIN
- * - Disable PIN
- * - Add/update PIN hint
- */
+import {
+  authenticateWithBiometrics,
+  isBiometricAvailable,
+  isBiometricEnabled,
+  setBiometricEnabled as saveBiometricEnabled,
+} from "../services/biometricService";
+
 export default function SecurityScreen() {
   const [pinEnabled, setPinEnabled] = useState(false);
   const [pin, setPin] = useState("");
@@ -39,40 +37,36 @@ export default function SecurityScreen() {
   const [oldPin, setOldPin] = useState("");
   const [pinHint, setPinHint] = useState("");
 
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+
   useEffect(() => {
     loadStatus();
   }, []);
 
-  /**
-   * Load current PIN status and saved hint.
-   */
   async function loadStatus() {
     const enabled = await isPinEnabled();
     const hint = await getPinHint();
 
+    const bioAvailable = await isBiometricAvailable();
+    const bioEnabled = await isBiometricEnabled();
+
     setPinEnabled(enabled);
     setPinHint(hint);
+    setBiometricAvailable(bioAvailable);
+    setBiometricEnabled(bioEnabled);
   }
 
-  /**
-   * PIN must be exactly 4 digits.
-   */
   function isValidPin(value: string) {
     return /^\d{4}$/.test(value);
   }
 
-  /**
-   * Clear PIN inputs after save/change/disable.
-   */
   function clearFields() {
     setPin("");
     setConfirmPin("");
     setOldPin("");
   }
 
-  /**
-   * Enable PIN for the first time.
-   */
   async function handleEnablePin() {
     if (!isValidPin(pin)) {
       Alert.alert("Invalid PIN", "PIN must be exactly 4 digits.");
@@ -93,10 +87,6 @@ export default function SecurityScreen() {
     Alert.alert("Success", "PIN lock enabled.");
   }
 
-  /**
-   * Change existing PIN.
-   * Current PIN is required before saving new PIN.
-   */
   async function handleChangePin() {
     if (!isValidPin(oldPin)) {
       Alert.alert("Invalid PIN", "Please enter your current 4-digit PIN.");
@@ -128,15 +118,9 @@ export default function SecurityScreen() {
     Alert.alert("Success", "PIN changed successfully.");
   }
 
-  /**
-   * Disable PIN after verifying current PIN.
-   */
   async function handleDisablePin() {
     if (!isValidPin(oldPin)) {
-      Alert.alert(
-        "PIN Required",
-        "Please enter your current PIN before disabling."
-      );
+      Alert.alert("PIN Required", "Please enter your current PIN before disabling.");
       return;
     }
 
@@ -155,9 +139,13 @@ export default function SecurityScreen() {
         onPress: async () => {
           await disablePin();
 
+          // If PIN is disabled, biometric should also be disabled.
+          await saveBiometricEnabled(false);
+
           clearFields();
           setPinHint("");
           setPinEnabled(false);
+          setBiometricEnabled(false);
 
           Alert.alert("Success", "PIN disabled.");
         },
@@ -165,12 +153,42 @@ export default function SecurityScreen() {
     ]);
   }
 
-  /**
-   * Save or update PIN hint.
-   */
   async function handleUpdateHint() {
     await savePinHint(pinHint);
     Alert.alert("Saved", "PIN hint updated.");
+  }
+
+  async function handleToggleBiometric() {
+    const newValue = !biometricEnabled;
+
+    if (newValue) {
+      const available = await isBiometricAvailable();
+
+      if (!available) {
+        Alert.alert(
+          "Biometric unavailable",
+          "Face ID, Touch ID, or Fingerprint is not available or not enrolled on this device."
+        );
+        return;
+      }
+
+      const success = await authenticateWithBiometrics();
+
+      if (!success) {
+        Alert.alert("Not enabled", "Biometric verification was cancelled or failed.");
+        return;
+      }
+    }
+
+    await saveBiometricEnabled(newValue);
+
+    const savedValue = await isBiometricEnabled();
+    setBiometricEnabled(savedValue);
+
+    Alert.alert(
+      "Biometric Unlock",
+      savedValue ? "Biometric is now ON." : "Biometric is now OFF."
+    );
   }
 
   return (
@@ -185,10 +203,7 @@ export default function SecurityScreen() {
           contentContainerStyle={styles.content}
         >
           <Text style={styles.title}>Security</Text>
-
-          <Text style={styles.subtitle}>
-            Add a 4-digit PIN to protect your PayDG app.
-          </Text>
+          <Text style={styles.subtitle}>Protect PayDG with PIN and biometric unlock.</Text>
 
           <View style={styles.card}>
             <View style={styles.statusBox}>
@@ -220,9 +235,7 @@ export default function SecurityScreen() {
               </>
             )}
 
-            <Text style={styles.label}>
-              {pinEnabled ? "New PIN" : "Create PIN"}
-            </Text>
+            <Text style={styles.label}>{pinEnabled ? "New PIN" : "Create PIN"}</Text>
 
             <TextInput
               style={styles.input}
@@ -259,49 +272,72 @@ export default function SecurityScreen() {
             />
 
             {pinEnabled && (
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.secondaryButton}
-                onPress={handleUpdateHint}
-              >
+              <TouchableOpacity style={styles.secondaryButton} onPress={handleUpdateHint}>
                 <Text style={styles.secondaryButtonText}>Update PIN Hint</Text>
               </TouchableOpacity>
             )}
 
             {!pinEnabled ? (
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.primaryButton}
-                onPress={handleEnablePin}
-              >
+              <TouchableOpacity style={styles.primaryButton} onPress={handleEnablePin}>
                 <Text style={styles.primaryButtonText}>Enable PIN Lock</Text>
               </TouchableOpacity>
             ) : (
               <>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={styles.primaryButton}
-                  onPress={handleChangePin}
-                >
+                <TouchableOpacity style={styles.primaryButton} onPress={handleChangePin}>
                   <Text style={styles.primaryButtonText}>Change PIN</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={styles.dangerButton}
-                  onPress={handleDisablePin}
-                >
+                <TouchableOpacity style={styles.dangerButton} onPress={handleDisablePin}>
                   <Text style={styles.dangerButtonText}>Disable PIN</Text>
                 </TouchableOpacity>
               </>
             )}
           </View>
 
+          {pinEnabled && (
+            <View style={styles.card}>
+              <View style={styles.statusBox}>
+                <View>
+                  <Text style={styles.statusTitle}>Biometric Unlock</Text>
+                  <Text style={styles.statusSub}>
+                    Face ID, Touch ID, or Fingerprint with PIN fallback
+                  </Text>
+                </View>
+
+                <Text style={biometricEnabled ? styles.statusOn : styles.statusOff}>
+                  {biometricEnabled ? "ON" : "OFF"}
+                </Text>
+              </View>
+
+              {!biometricAvailable ? (
+                <View style={styles.warningBox}>
+                  <Text style={styles.warningText}>
+                    Biometric unlock is not available or not enrolled on this device.
+                  </Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={biometricEnabled ? styles.biometricOffButton : styles.biometricButton}
+                  onPress={handleToggleBiometric}
+                >
+                  <Text
+                    style={
+                      biometricEnabled
+                        ? styles.biometricOffButtonText
+                        : styles.biometricButtonText
+                    }
+                  >
+                    {biometricEnabled ? "Disable Biometric" : "Enable Biometric"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           <View style={styles.infoCard}>
             <Text style={styles.infoTitle}>Important</Text>
             <Text style={styles.infoText}>
-              This PIN is saved only on this phone. If you delete app data or
-              reinstall the app, the PIN may reset.
+              PIN is saved only on this phone. Biometric unlock only works when PIN lock is enabled.
             </Text>
           </View>
         </ScrollView>
@@ -310,23 +346,10 @@ export default function SecurityScreen() {
   );
 }
 
-/**
- * PayDG premium light theme.
- */
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: "#F6F7FB",
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 44,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
+  screen: { flex: 1, backgroundColor: "#F6F7FB" },
+  content: { padding: 20, paddingBottom: 44 },
+  title: { fontSize: 32, fontWeight: "900", color: "#0F172A" },
   subtitle: {
     marginTop: 4,
     marginBottom: 20,
@@ -353,27 +376,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  statusTitle: {
-    fontSize: 15,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
+  statusTitle: { fontSize: 15, fontWeight: "900", color: "#0F172A" },
   statusSub: {
     marginTop: 3,
     fontSize: 12,
     fontWeight: "700",
     color: "#64748B",
   },
-  statusOn: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#059669",
-  },
-  statusOff: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#64748B",
-  },
+  statusOn: { fontSize: 13, fontWeight: "900", color: "#059669" },
+  statusOff: { fontSize: 13, fontWeight: "900", color: "#64748B" },
   label: {
     marginBottom: 8,
     fontSize: 14,
@@ -410,11 +421,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
   },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "900",
-    fontSize: 16,
-  },
+  primaryButtonText: { color: "#FFFFFF", fontWeight: "900", fontSize: 16 },
   secondaryButton: {
     backgroundColor: "#FFF7ED",
     borderWidth: 1,
@@ -424,11 +431,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  secondaryButtonText: {
-    color: "#D97706",
-    fontWeight: "900",
-    fontSize: 15,
-  },
+  secondaryButtonText: { color: "#D97706", fontWeight: "900", fontSize: 15 },
   dangerButton: {
     marginTop: 12,
     backgroundColor: "#DC2626",
@@ -436,10 +439,43 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
   },
-  dangerButtonText: {
+  dangerButtonText: { color: "#FFFFFF", fontWeight: "900", fontSize: 16 },
+  biometricButton: {
+    backgroundColor: "#D97706",
+    padding: 16,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  biometricButtonText: {
     color: "#FFFFFF",
     fontWeight: "900",
     fontSize: 16,
+  },
+  biometricOffButton: {
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    padding: 16,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  biometricOffButtonText: {
+    color: "#B91C1C",
+    fontWeight: "900",
+    fontSize: 16,
+  },
+  warningBox: {
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    borderRadius: 16,
+    padding: 14,
+  },
+  warningText: {
+    color: "#92400E",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 20,
   },
   infoCard: {
     backgroundColor: "#EFF6FF",
