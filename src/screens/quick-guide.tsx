@@ -11,7 +11,6 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
 
 import Screen from "../components/Screen";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 
 function GuideCard({
   title,
@@ -70,7 +69,6 @@ export default function QuickGuideScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        <ActiveShiftTimerCard />
 
         {/* Header */}
         <View style={styles.header}>
@@ -101,17 +99,14 @@ export default function QuickGuideScreen() {
           Stats will become much stronger later.
         </MiniTip>
 
-        <GuideCard title="⏱️ 2) Track your shifts">
-          Option A — Add Shift:
-          {"\n"}Best when you already know your start and end time.
-          {"\n\n"}Option B — Punch In/Out:
-          {"\n"}Best when you’re busy. One tap in, one tap out — PayDG
-          calculates hours automatically.
+        <GuideCard title="⏱️ 2) Add your work income">
+          Open Add Work Income from the menu after a completed shift.
+          {"\n\n"}Choose the workplace and role, then enter the hours, wage, and
+          tips. PayDG calculates the total automatically.
         </GuideCard>
 
         <MiniTip>
-          🍕 Busy night? Use Punch. Chill shift? Use Add Shift. Both show up in
-          History and Stats.
+          🍕 Adding each completed shift keeps History and Stats accurate.
         </MiniTip>
 
         <GuideCard title="📂 3) Know your screens">
@@ -140,9 +135,9 @@ export default function QuickGuideScreen() {
           “weekends pay more” or “this role earns better.”
         </MiniTip>
 
-        <GuideCard title="🚨 5) Forgot to punch out?" tone="warning">
-          No stress. PayDG has safety auto-close so the timer won’t run forever.
-          {"\n\n"}You can always fix it in History → Edit Shift.
+        <GuideCard title="✏️ 5) Need to fix a shift?" tone="warning">
+          Open History and select the shift. You can update the time, wage,
+          tips, workplace, or role.
         </GuideCard>
 
         <View style={styles.footerCard}>

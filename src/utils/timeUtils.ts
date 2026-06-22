@@ -46,7 +46,7 @@ export function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** ⏱ For Punch In/Out live timer (ms -> HH:MM:SS) */
+/** Format a duration in milliseconds as HH:MM:SS. */
 export function formatDuration(ms: number) {
   const totalSec = Math.floor(ms / 1000);
   const h = Math.floor(totalSec / 3600);

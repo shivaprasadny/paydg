@@ -17,7 +17,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 /* ---------------------------------------------------------
@@ -96,13 +95,7 @@ export default function DayDetailsScreen() {
   /**
    * Load shifts for selected day every time screen gets focus.
    */
-  useFocusEffect(
-    useCallback(() => {
-      loadDayShifts();
-    }, [isoDate])
-  );
-
-  async function loadDayShifts() {
+  const loadDayShifts = useCallback(async () => {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     const arr: Shift[] = raw ? JSON.parse(raw) : [];
 
@@ -114,7 +107,13 @@ export default function DayDetailsScreen() {
       );
 
     setShifts(filtered);
-  }
+  }, [isoDate]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDayShifts();
+    }, [loadDayShifts])
+  );
 
   /**
    * Day totals.
@@ -147,7 +146,6 @@ export default function DayDetailsScreen() {
 
   return (
     <Screen bg={COLORS.bg} pad={16}>
-      <ActiveShiftTimerCard />
 
       {/* -------------------- Header -------------------- */}
       <View style={styles.header}>

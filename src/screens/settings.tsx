@@ -25,7 +25,6 @@ import { useRouter } from "expo-router";
 
 import { getProfile, saveProfile } from "../storage/repositories/profileRepo";
 import { Profile } from "../models/Profile";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 /* ---------------------------------------------------------
@@ -71,37 +70,14 @@ export default function SettingsScreen() {
   const profile = getProfile();
 
   /**
-   * If profile does not exist,
-   * user should complete profile first.
-   */
-  if (!profile) {
-    return (
-      <Screen bg={COLORS.bg} pad={16}>
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyEmoji}>👤</Text>
-          <Text style={styles.title}>Settings</Text>
-          <Text style={styles.helper}>Please complete your profile first.</Text>
-
-          <Pressable
-            style={styles.primaryBtn}
-            onPress={() => router.push("/profile")}
-          >
-            <Text style={styles.primaryBtnText}>Go to Profile</Text>
-          </Pressable>
-        </View>
-      </Screen>
-    );
-  }
-
-  /**
    * Load initial values from saved profile.
    */
   const initial = useMemo(() => {
     return {
-      userName: profile.userName ?? "",
-      defaultHourlyWage: String(profile.defaultHourlyWage ?? 0),
-      defaultBreakMinutes: String(profile.defaultBreakMinutes ?? 30),
-      defaultUnpaidBreak: profile.defaultUnpaidBreak ?? true,
+      userName: profile?.userName ?? "",
+      defaultHourlyWage: String(profile?.defaultHourlyWage ?? 0),
+      defaultBreakMinutes: String(profile?.defaultBreakMinutes ?? 30),
+      defaultUnpaidBreak: profile?.defaultUnpaidBreak ?? true,
     };
   }, [profile]);
 
@@ -128,6 +104,29 @@ export default function SettingsScreen() {
     () => Math.min(240, Math.max(0, parseIntSafe(defaultBreakMinutesText, 30))),
     [defaultBreakMinutesText]
   );
+
+  /**
+   * Hooks must always run before a conditional return. This keeps Settings
+   * compliant with React's hook ordering rules when no profile exists yet.
+   */
+  if (!profile) {
+    return (
+      <Screen bg={COLORS.bg} pad={16}>
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyEmoji}>👤</Text>
+          <Text style={styles.title}>Settings</Text>
+          <Text style={styles.helper}>Please complete your profile first.</Text>
+
+          <Pressable
+            style={styles.primaryBtn}
+            onPress={() => router.push("/profile")}
+          >
+            <Text style={styles.primaryBtnText}>Go to Profile</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
 
   /**
    * Save settings into Profile storage.
@@ -167,9 +166,6 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </View>
-
-      {/* -------------------- Active Shift Timer -------------------- */}
-      <ActiveShiftTimerCard />
 
       {/* -------------------- Profile Card -------------------- */}
       <View style={styles.card}>

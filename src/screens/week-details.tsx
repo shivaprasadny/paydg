@@ -20,7 +20,6 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 type Shift = {
@@ -212,7 +211,6 @@ export default function WeekDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        <ActiveShiftTimerCard />
 
         {/* Header */}
         <View style={styles.heroCard}>

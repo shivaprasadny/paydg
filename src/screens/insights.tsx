@@ -23,7 +23,6 @@ import { BarChart, LineChart, PieChart } from "react-native-chart-kit";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 
 import Screen from "../components/Screen";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 
 const STORAGE_KEY = "paydg_shifts_v1";
 
@@ -607,7 +606,6 @@ export default function InsightsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        <ActiveShiftTimerCard />
 
         {/* =========================
             HEADER

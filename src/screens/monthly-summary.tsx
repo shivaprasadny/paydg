@@ -20,7 +20,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 const SHIFTS_KEY = "paydg_shifts_v1";
@@ -267,7 +266,6 @@ export default function MonthlySummaryScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        <ActiveShiftTimerCard />
 
         {/* Header */}
         <View style={styles.headerRow}>

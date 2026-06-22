@@ -22,7 +22,6 @@ import * as Sharing from "expo-sharing";
 
 import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 const SUPPORT_EMAIL = "shiva_prem14@hotmail.com";
@@ -195,7 +194,6 @@ export default function AboutScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        <ActiveShiftTimerCard />
 
         {/* Header */}
         <View style={styles.heroCard}>
@@ -244,7 +242,7 @@ export default function AboutScreen() {
         <Card title="📘 Want to learn it fast?">
           <BodyText>
             Use the Quick Guide screen to understand the best PayDG workflow:
-            setup, adding shifts, punch in/out, history, and stats.
+            setup, adding work income, history, expenses, and stats.
           </BodyText>
 
           <View style={styles.tipBox}>
@@ -322,8 +320,7 @@ export default function AboutScreen() {
           <Bullet text="Workplaces and Roles" />
           <Bullet text="Defaults per workplace or role" />
           <Bullet text="Weekly, monthly, and yearly stats" />
-          <Bullet text="Punch In/Out with auto-close safety" />
-          <Bullet text="English / Español support" />
+          <Bullet text="Simple English-first experience" />
           <Bullet text="Backup / Restore" />
         </Card>
 

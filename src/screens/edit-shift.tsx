@@ -29,7 +29,6 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 const STORAGE_KEY = "paydg_shifts_v1";
@@ -334,7 +333,6 @@ export default function EditShiftScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.container}
           >
-            <ActiveShiftTimerCard />
 
             {/* Header */}
             <View style={styles.header}>

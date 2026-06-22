@@ -28,7 +28,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 import { getProfile } from "../storage/repositories/profileRepo";
@@ -428,7 +427,6 @@ export default function AddShiftScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.container}
           >
-            <ActiveShiftTimerCard />
 
             {/* Header */}
             <View style={styles.headerRow}>

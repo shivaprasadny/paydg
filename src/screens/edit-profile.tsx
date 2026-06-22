@@ -4,9 +4,7 @@ import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "rea
 import { useRouter } from "expo-router";
 
 import Screen from "../components/Screen";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 
-import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
 import { getProfile, upsertProfile } from "../storage/repositories/profileRepo";
 import type { Profile } from "../models/Profile";
@@ -84,7 +82,6 @@ export default function EditProfileScreen() {
 
   return (
     <Screen bg="#f7f7f7" safeTop pad={16}>
-      <ActiveShiftTimerCard />
 
       <View style={styles.headerRow}>
         <Text style={styles.title}>Edit Profile</Text>

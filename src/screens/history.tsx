@@ -23,7 +23,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 const STORAGE_KEY = "paydg_shifts_v1";
@@ -263,7 +262,6 @@ export default function HistoryScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        <ActiveShiftTimerCard />
 
         {/* Header */}
         <View style={styles.headerRow}>

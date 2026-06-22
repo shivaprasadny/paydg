@@ -25,7 +25,6 @@ import {
 import { useRouter } from "expo-router";
 
 import Screen from "../src/components/Screen";
-import ActiveShiftTimerCard from "../src/components/ActiveShiftTimerCard";
 
 import {
   getProfile,
@@ -91,7 +90,6 @@ export default function ProfileScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.container}
           >
-            <ActiveShiftTimerCard />
 
             <View style={styles.heroCard}>
               <Text style={styles.eyebrow}>Step 1 of 3</Text>

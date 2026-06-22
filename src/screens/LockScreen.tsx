@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -30,6 +30,15 @@ export default function LockScreen({ onUnlocked }: Props) {
   const [showHint, setShowHint] = useState(false);
   const [biometricReady, setBiometricReady] = useState(false);
 
+  const handleBiometricUnlock = useCallback(async () => {
+    const success = await authenticateWithBiometrics();
+
+    if (success) {
+      setPin("");
+      onUnlocked();
+    }
+  }, [onUnlocked]);
+
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
 
@@ -55,7 +64,7 @@ export default function LockScreen({ onUnlocked }: Props) {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [handleBiometricUnlock]);
 
   async function handleUnlock() {
     Keyboard.dismiss();
@@ -75,15 +84,6 @@ export default function LockScreen({ onUnlocked }: Props) {
 
     setPin("");
     onUnlocked();
-  }
-
-  async function handleBiometricUnlock() {
-    const success = await authenticateWithBiometrics();
-
-    if (success) {
-      setPin("");
-      onUnlocked();
-    }
   }
 
   return (

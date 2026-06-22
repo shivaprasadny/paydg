@@ -20,7 +20,6 @@ import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { listWorkplaces } from "../storage/repositories/workplaceRepo";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 type Shift = {
@@ -368,7 +367,6 @@ export default function StatsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        <ActiveShiftTimerCard />
 
         {/* Header */}
         <View style={styles.headerRow}>

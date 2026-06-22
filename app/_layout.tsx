@@ -11,10 +11,10 @@ import { migrate } from "../src/storage/migrations";
 import { hydrateProfile } from "../src/storage/repositories/profileRepo";
 import { hydrateWorkplaces } from "../src/storage/repositories/workplaceRepo";
 import { hydrateRoles } from "../src/storage/repositories/roleRepo";
-import { autoCloseIfNeeded } from "../src/storage/repositories/punchRepo";
 
 import LockScreen from "../src/screens/LockScreen";
 import { isPinEnabled } from "../src/services/securityService";
+import { initMoneyDatabase } from "../src/features/money/database";
 
 /**
  * RootLayout
@@ -53,8 +53,8 @@ export default function RootLayout() {
       // Local storage migrations.
       migrate();
 
-      // Auto-close active shift if needed.
-      await autoCloseIfNeeded();
+      // Initialize the merged ExpenseDG data module.
+      await initMoneyDatabase();
 
       // Load saved local data into memory.
       await hydrateProfile();
@@ -238,6 +238,36 @@ export default function RootLayout() {
           />
 
           <Stack.Screen name="security" options={{ title: "Security" }} />
+          <Stack.Screen name="menu" options={{ title: "PayDG Menu" }} />
+
+          <Stack.Screen
+            name="money/index"
+            options={{ title: "Money Dashboard" }}
+          />
+          <Stack.Screen
+            name="money/add"
+            options={{ title: "Add Money Record" }}
+          />
+          <Stack.Screen
+            name="money/records"
+            options={{ title: "Money Records" }}
+          />
+          <Stack.Screen
+            name="money/categories"
+            options={{ title: "Money Categories" }}
+          />
+          <Stack.Screen
+            name="money/budget"
+            options={{ title: "Monthly Budget" }}
+          />
+          <Stack.Screen
+            name="money/analytics"
+            options={{ title: "Money Analytics" }}
+          />
+          <Stack.Screen
+            name="money/recurring"
+            options={{ title: "Recurring Records" }}
+          />
         </Stack>
       )}
     </SafeAreaProvider>

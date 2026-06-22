@@ -31,7 +31,6 @@ import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
 
 import Screen from "../components/Screen";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 
 import { hydrateProfile } from "../storage/repositories/profileRepo";
 import { hydrateWorkplaces } from "../storage/repositories/workplaceRepo";
@@ -70,7 +69,6 @@ const KEYS = {
   profile: "paydg_profile_v1",
   workplaces: "paydg_workplaces_v1",
   roles: "paydg_roles_v1",
-  lang: "paydg_lang_v1",
   settings: "paydg_settings_v1",
 };
 
@@ -409,7 +407,6 @@ export default function BackupScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        <ActiveShiftTimerCard />
 
         {/* Header */}
         <View style={styles.heroCard}>
@@ -532,7 +529,7 @@ export default function BackupScreen() {
               <Text style={styles.modalTitle}>Factory Reset</Text>
 
               <Text style={styles.modalWarning}>
-                This will delete all shifts, profile, workplaces, roles, language,
+                This will delete all shifts, profile, workplaces, and roles,
                 and settings from this device.
               </Text>
 

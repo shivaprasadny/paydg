@@ -16,7 +16,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 /* ---------------------------------------------------------
@@ -260,7 +259,6 @@ export default function EntriesScreen() {
 
   return (
     <Screen bg={COLORS.bg} pad={16}>
-      <ActiveShiftTimerCard />
 
       {/* -------------------- Header -------------------- */}
       <View style={styles.header}>

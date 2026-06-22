@@ -8,7 +8,7 @@
 // ✅ Onboarding support with skip option
 // ---------------------------------------------------------
 
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   FlatList,
@@ -33,7 +33,6 @@ import {
 
 import { t } from "../i18n";
 import { useLang } from "../i18n/useLang";
-import ActiveShiftTimerCard from "../components/ActiveShiftTimerCard";
 import Screen from "../components/Screen";
 
 export default function RolesScreen() {
@@ -49,7 +48,9 @@ export default function RolesScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
 
-  const roles = useMemo(() => listRoles(), [refreshKey]);
+  // refreshKey intentionally triggers a render after repository mutations.
+  void refreshKey;
+  const roles = listRoles();
 
   async function onAdd() {
     const trimmed = name.trim();
@@ -126,7 +127,6 @@ export default function RolesScreen() {
             contentContainerStyle={styles.listContent}
             ListHeaderComponent={
               <View style={styles.headerContent}>
-                <ActiveShiftTimerCard />
 
                 <View style={styles.heroCard}>
                   <Text style={styles.eyebrow}>
